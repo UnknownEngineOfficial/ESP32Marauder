@@ -112,9 +112,11 @@ void ApiServer::begin(const char* ssid, const char* password) {
       MDNS.addService("http", "tcp", API_PORT);
     }
   } else {
-    Serial.println("\n[API] WiFi connect failed — retrying in loop...");
+    Serial.println("\n[API] WiFi connect failed. Creating fallback AP...");
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("CHANGE_ME_MGMT_AP_SSID", "CHANGE_ME_HOTSPOT_PASSWORD");
+    _device_ip = WiFi.softAPIP().toString();
     _wifi_connected = false;
-    _device_ip = "0.0.0.0";
   }
 
   // ---- CORS preflight ----
