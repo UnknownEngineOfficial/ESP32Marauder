@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="/manifest.json">
+<title>Marauder</title>
+<style>
+:root{--bg:#0a0a0a;--surface:#141414;--border:#2a2a2a;--text:#e0e0e0;--dim:#888;--green:#0c6;--red:#f44;--yellow:#fa0;--accent:#0c6;--radius:8px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',monospace;background:var(--bg);color:var(--text);padding:12px;max-width:800px;margin:0 auto;padding-bottom:60px}
+.offline-bar{display:none;position:fixed;top:0;left:0;right:0;background:var(--red);color:#fff;text-align:center;padding:6px;font-size:.7em;font-weight:bold;z-index:100}
+.offline-bar.show{display:block}
+.status-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.stat{font-size:.75em}.stat .label{color:var(--dim);text-transform:uppercase;font-size:.65em}.stat .val{font-weight:bold;font-size:1.1em}.val.ok{color:var(--green)}.val.err{color:var(--red)}.val.warn{color:var(--yellow)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+.section h2{font-size:.85em;color:var(--dim);text-transform:uppercase;margin-bottom:8px;letter-spacing:.5px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center}
+.btn{padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font:inherit;font-size:.78em;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:active{background:var(--accent);color:var(--bg)}
+.btn.danger{border-color:var(--red);color:var(--red)}.btn.danger:hover{background:var(--red);color:var(--bg)}
+.btn.warn{border-color:var(--yellow);color:var(--yellow)}
+.btn.small{padding:4px 10px;font-size:.7em}
+table{width:100%;border-collapse:collapse;font-size:.72em;margin-top:6px}
+th,td{padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--dim);font-weight:normal;text-transform:uppercase;font-size:.85em}
+tr:hover{background:rgba(255,255,255,.03)}
+.badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.75em;background:var(--border)}
+.scroll-table{max-height:250px;overflow-y:auto}
+.toast{position:fixed;bottom:12px;right:12px;background:var(--green);color:var(--bg);padding:8px 16px;border-radius:var(--radius);font-size:.8em;z-index:99;animation:fadeIn .2s}
+.toast.err{background:var(--red)}
+.toast.warn{background:var(--yellow);color:var(--bg)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.install-btn{display:none;position:fixed;bottom:12px;left:12px;background:var(--accent);color:var(--bg);border:none;padding:10px 20px;border-radius:var(--radius);font:inherit;font-size:.8em;font-weight:bold;cursor:pointer;z-index:99;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.install-btn.show{display:block}
+#rawStats{font-size:.75em;display:flex;flex-wrap:wrap;gap:10px}
+#rawStats span b{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div class="offline-bar" id="offlineBar">⚠ ESP32 OFFLINE — reconnecting...</div>
+<button class="install-btn" id="installBtn" onclick="installPWA()">📲 Add to Home Screen</button>
+
+<div id="statusBar" class="status-bar"></div>
+
+<div class="section"><h2>📡 Scan</h2>
+<div class="row" id="scanBtns"></div>
+<button class="btn small danger" style="margin-top:4px" onclick="api('POST','/api/scan/stop')">Stop All</button>
+</div>
+
+<div class="section"><h2>⚔️ Attack</h2>
+<div class="row" id="attackBtns"></div>
+<button class="btn small danger" style="margin-top:4px" onclick="api('POST','/api/attack/stop')">Stop Attacks</button>
+</div>
+
+<div class="section"><h2>🔵 Bluetooth</h2>
+<div class="row" id="btBtns"></div>
+</div>
+
+<div class="section"><h2>🌍 GPS & Wardrive</h2>
+<div class="row" id="gpsBtns"></div>
+</div>
+
+<div class="section"><h2>🔑 Evil Portal</h2>
+<div class="row" id="epBtns"></div>
+</div>
+
+<div class="section"><h2>📋 AP List</h2>
+<div class="row" style="margin-bottom:6px">
+<button class="btn small" onclick="loadAPs()">Refresh</button>
+<button class="btn small" onclick="api('POST','/api/clearlist?list=ap')">Clear</button>
+</div>
+<div class="scroll-table"><table id="apTable"><thead><tr><th>#</th><th>SSID</th><th>BSSID</th><th>Ch</th><th>RSSI</th><th>Sec</th></tr></thead><tbody></tbody></table></div>
+</div>
+
+<div class="section"><h2>📊 Stations</h2>
+<div class="scroll-table"><table id="staTable"><thead><tr><th>#</th><th>MAC</th><th>AP</th><th>Ch</th><th>RSSI</th></tr></thead><tbody></tbody></table></div>
+</div>
+
+<div class="section"><h2>🟦 BLE</h2>
+<div class="scroll-table"><table id="bleTable"><thead><tr><th>#</th><th>Name</th><th>MAC</th><th>RSSI</th></tr></thead><tbody></tbody></table></div>
+</div>
+
+<div class="section"><h2>📈 Packet Stats</h2><div id="rawStats"></div></div>
+
+<script>
+// --- Offline resilience ---
+var IS_ONLINE=false,OFFLINE_SINCE=0,RECONNECT_INTERVAL=2000;
+
+function toast(msg,err){var t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove()},2500)}
+
+async function api(method,path,body){
+  if(!IS_ONLINE){return null}
+  try{
+    var opts={method:method,signal:AbortSignal.timeout(5000)};
+    if(body){opts.headers={'Content-Type':'application/json'};opts.body=JSON.stringify(body)}
+    var res=await fetch(path,opts);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return await res.json()
+  }catch(e){
+    if(IS_ONLINE){setOffline()} // only transition if we were online
+    return null
+  }
+}
+
+function setOffline(){
+  if(IS_ONLINE){IS_ONLINE=false;OFFLINE_SINCE=Date.now();document.getElementById('offlineBar').classList.add('show');toast('ESP32 offline — will reconnect','warn')}
+}
+function setOnline(){
+  if(!IS_ONLINE){IS_ONLINE=true;document.getElementById('offlineBar').classList.remove('show');toast('ESP32 reconnected!')}
+}
+
+async function checkConnection(){
+  try{
+    var res=await fetch('/api/status',{signal:AbortSignal.timeout(3000)});
+    if(res.ok){setOnline();return true}
+  }catch(e){}
+  setOffline();return false
+}
+
+// --- UI ---
+var scanMap={0:'Idle',2:'AP',1:'Probe',3:'PWN',4:'EAPOL',5:'DeauthSniff',6:'All',7:'Packet',8:'Beacon',9:'Rickroll',15:'BeaconList',20:'Deauth',21:'APSpam',25:'Raw',26:'Station',29:'Foxhunt',30:'EvilPortal',31:'GPS',32:'Wardrive',46:'Channel',48:'PktRate',50:'PineScan',51:'MultiSSID',56:'BadMSG',61:'Sleep'};
+
+async function loadStatus(){
+  var d=await api('GET','/api/status');
+  if(!d){fillOfflineStatus();return}
+  document.getElementById('statusBar').innerHTML=
+  '<div class="stat"><div class="label">Version</div><div class="val">'+d.version+'</div></div>'+
+  '<div class="stat"><div class="label">Board</div><div class="val">'+d.hardware+'</div></div>'+
+  '<div class="stat"><div class="label">WiFi</div><div class="val '+(d.wifi_connected?'ok':'err')+'">'+(d.wifi_connected?'Connected':d.wifi_ap_mode?'AP Mode':'Off')+'</div></div>'+
+  '<div class="stat"><div class="label">Scan</div><div class="val">'+(scanMap[d.current_scan]||d.current_scan)+'</div></div>'+
+  '<div class="stat"><div class="label">Ch</div><div class="val">'+d.channel+'</div></div>'+
+  '<div class="stat"><div class="label">APs</div><div class="val">'+(d.ap_count||0)+'</div></div>'+
+  '<div class="stat"><div class="label">Sta</div><div class="val">'+(d.station_count||0)+'</div></div>'+
+  '<div class="stat"><div class="label">BLE</div><div class="val">'+(d.ble_count||0)+'</div></div>'+
+  '<div class="stat"><div class="label">Heap</div><div class="val">'+Math.round((d.free_heap||0)/1024)+'K</div></div>'+
+  (d.battery_pct!==undefined?'<div class="stat"><div class="label">Bat</div><div class="val">'+d.battery_pct+'%</div></div>':'')+
+  (d.gps_has_fix?'<div class="stat"><div class="label">GPS</div><div class="val ok">Fixed</div></div>':'')
+}
+function fillOfflineStatus(){
+  document.getElementById('statusBar').innerHTML=
+  '<div class="stat"><div class="label">Status</div><div class="val err">OFFLINE</div></div>'+
+  '<div class="stat"><div class="label">Since</div><div class="val warn">'+Math.round((Date.now()-OFFLINE_SINCE)/1000)+'s</div></div>'
+}
+
+// --- Build buttons ---
+(function(){
+  var scans=[['AP','ap'],['Station','sta'],['All','all'],['Probe','probe'],['PWN','pwn'],['DeauthSniff','deauth'],['EAPOL','eapol'],['Raw','raw'],['Beacon','beacon'],['Packet','packet'],['SAE','sae'],['PineScan','pinescan'],['MultiSSID','multissid']];
+  document.getElementById('scanBtns').innerHTML=scans.map(function(s){return '<button class="btn small" onclick="api(\'POST\',\'/api/scan/start?type='+s[1]+'\');toast(\''+s[0]+' started\')">'+s[0]+'</button>'}).join('');
+})();
+
+(function(){document.getElementById('attackBtns').innerHTML=
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=deauth\')">Deauth</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=beacon\')">BeaconSpam</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=beacon&mode=list\')">BeaconList</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=beacon&mode=rickroll\')">Rickroll</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=probe\')">ProbeAtk</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=badmsg\')">BadMSG</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/wardrive?action=start\')">Wardrive</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/foxhunt?band=wifi\')">Foxhunt</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/pingscan\')">PingScan</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/portscan\')">PortScan</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/mactrack\')">MACTrack</button>'+
+'<button class="btn small warn" onclick="api(\'POST\',\'/api/karma?action=start\')">Karma</button>';})();
+
+(function(){document.getElementById('btBtns').innerHTML=
+'<button class="btn small" onclick="api(\'POST\',\'/api/bt/scan?type=airtag\')">BLE Scan</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/bt/spam?type=sourapple\')">SourApple</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/bt/spam?type=applejuice\')">AppleJuice</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/bt/spam?type=swiftpair\')">SwiftPair</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/bt/findmy?action=scan\')">FindMyScan</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/bt/findmy?action=sound\')">FindMySound</button>';})();
+
+(function(){document.getElementById('gpsBtns').innerHTML=
+'<button class="btn small" onclick="loadGPS()">GPS Data</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/gps/tracker?action=start\')">StartTracker</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/gps/tracker?action=stop\')">StopTracker</button>'+
+'<div id="gpsData" style="font-size:0.7em;margin-top:6px;color:var(--dim)"></div>';})();
+
+(function(){document.getElementById('epBtns').innerHTML=
+'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=start\')">Start</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=stop\')">Stop</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=status\')">Status</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=ack\')">GenAck</button>'+
+'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=reset\')">ResetCreds</button>';})();
+
+// --- Data loaders ---
+async function loadAPs(){var d=await api('GET','/api/data/ap');if(!d||!d.access_points)return;document.querySelector('#apTable tbody').innerHTML=d.access_points.map(function(a){return'<tr><td>'+a.index+'</td><td>'+(a.essid||'[hidden]')+'</td><td style="font-size:0.8em">'+a.bssid+'</td><td>'+a.channel+'</td><td style="color:'+(a.rssi>-50?'var(--green)':a.rssi>-70?'var(--yellow)':'var(--red)')+'">'+a.rssi+'dBm</td><td><span class="badge">'+a.security+'</span></td></tr>'}).join('')}
+async function loadStations(){var d=await api('GET','/api/data/station');if(!d||!d.stations)return;document.querySelector('#staTable tbody').innerHTML=d.stations.map(function(s){return'<tr><td>'+s.index+'</td><td style="font-size:0.8em">'+s.mac+'</td><td>'+s.ap_index+'</td><td>'+s.channel+'</td><td>'+s.rssi+'dBm</td></tr>'}).join('')}
+async function loadBLE(){var d=await api('GET','/api/data/ble');if(!d||!d.ble_devices)return;document.querySelector('#bleTable tbody').innerHTML=d.ble_devices.map(function(b){return'<tr><td>'+b.index+'</td><td>'+(b.name||'[?]')+'</td><td style="font-size:0.8em">'+(b.mac||'')+'</td><td>'+b.rssi+'dBm</td></tr>'}).join('')}
+async function loadRawStats(){var d=await api('GET','/api/data/rawstats');if(!d)return;document.getElementById('rawStats').innerHTML='<span>Beacon: <b>'+(d.beacon_frames||0)+'</b></span><span>Probe: <b>'+(d.req_frames||0)+'</b></span><span>Deauth: <b>'+(d.deauth_frames||0)+'</b></span><span>EAPOL: <b>'+(d.eapol_frames||0)+'</b></span><span>Mgmt: <b>'+(d.mgmt_frames||0)+'</b></span><span>Data: <b>'+(d.data_frames||0)+'</b></span><span>BT: <b>'+(d.bt_frames||0)+'</b></span><span>Flock: <b>'+(d.flock_devices||0)+'</b></span><span>RSSI: <b>'+(d.min_rssi||0)+'/'+(d.max_rssi||0)+'</b></span>'}
+async function loadGPS(){var d=await api('GET','/api/gps');if(!d)return;document.getElementById('gpsData').innerHTML=d.available!==false?'Fix: '+(d.fix?'YES':'NO')+' | Lat: '+(d.lat||'?')+' | Lon: '+(d.lon||'?')+' | Alt: '+(d.alt||'?')+'m | Sat: '+(d.satellites||0)+' | Acc: '+(d.accuracy||'?')+'m':'GPS not available'}
+
+// --- Boot: register SW, check connection, start polling ---
+(async function boot(){
+  // Register Service Worker for offline caching
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('/sw.js').catch(function(){});
+  }
+
+  // Initial connection check
+  IS_ONLINE=await checkConnection();
+  if(IS_ONLINE){
+    loadStatus();loadAPs();loadStations();loadBLE();loadRawStats();loadGPS();
+  }else{fillOfflineStatus()}
+
+  // Status poll (critical: detects reconnect)
+  setInterval(async function(){
+    if(IS_ONLINE){loadStatus()}else{await checkConnection();if(IS_ONLINE){loadStatus();loadAPs();loadStations();loadBLE();loadRawStats();loadGPS()}}
+  },3000);
+
+  // Data poll (only when online)
+  setInterval(function(){if(IS_ONLINE){loadAPs();loadStations();loadBLE();loadRawStats();loadGPS()}},5000);
+
+  // PWA install prompt
+  var deferredPrompt;
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferredPrompt=e;document.getElementById('installBtn').classList.add('show')});
+  window.installPWA=function(){if(deferredPrompt){deferredPrompt.prompt();deferredPrompt.userChoice.then(function(r){document.getElementById('installBtn').classList.remove('show');deferredPrompt=null})}};
+})();
+</script>
+</body>
+</html>

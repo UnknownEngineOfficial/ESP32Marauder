@@ -1,0 +1,39 @@
+#pragma once
+#include <pgmspace.h>
+
+// Auto-generated: web-interface/sw.js (1021 bytes)
+
+const char WEB_INTERFACE_SW_JS[] PROGMEM = 
+  "// Marauder Control SW — cache-first, works when ESP32 is in promiscuous mode\n"
+  "var CACHE='marauder-v2';\n"
+  "var ASSETS=['/','/sw.js','/manifest.json'];\n"
+  "\n"
+  "self.addEventListener('install',function(e){\n"
+  "  e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(ASSETS)}));\n"
+  "  self.skipWaiting();\n"
+  "});\n"
+  "\n"
+  "self.addEventListener('activate',function(e){\n"
+  "  e.waitUntil(caches.keys().then(function(keys){\n"
+  "    return Promise.all(keys.filter(function(k){return k!==CACHE}).map(function(k){return caches.delete(k)}));\n"
+  "  }));\n"
+  "  self.clients.claim();\n"
+  "});\n"
+  "\n"
+  "self.addEventListener('fetch',function(e){\n"
+  "  // Never cache API calls — pass through\n"
+  "  if(e.request.url.indexOf('/api/')!==-1) return;\n"
+  "\n"
+  "  e.respondWith(\n"
+  "    caches.match(e.request).then(function(cached){\n"
+  "      return cached || fetch(e.request).then(function(resp){\n"
+  "        if(resp.ok){\n"
+  "          var clone=resp.clone();\n"
+  "          caches.open(CACHE).then(function(c){c.put(e.request,clone)});\n"
+  "        }\n"
+  "        return resp;\n"
+  "      }).catch(function(){return cached});\n"
+  "    })\n"
+  "  );\n"
+  "});\n"
+  "";
