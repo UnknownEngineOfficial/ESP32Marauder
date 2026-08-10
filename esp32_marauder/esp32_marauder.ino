@@ -513,7 +513,7 @@ void loop()
       if (currentTime - lastOLED > 500) {
         lastOLED = currentTime;
         const char* modeLabel = "CLI";
-        String ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
+        String ip = api_server_obj.getDeviceIP();
         int apCount = access_points ? access_points->size() : 0;
         int clCount = 0;
         bool deauth = (wifi_scan_obj.currentScanMode == WIFI_ATTACK_DEAUTH ||

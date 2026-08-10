@@ -112,11 +112,9 @@ void ApiServer::begin(const char* ssid, const char* password) {
       MDNS.addService("http", "tcp", API_PORT);
     }
   } else {
-    Serial.println("\n[API] WiFi connect failed. Creating AP fallback...");
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP("Marauder-Setup", "marauder123");
-    _device_ip = WiFi.softAPIP().toString();
+    Serial.println("\n[API] WiFi connect failed — retrying in loop...");
     _wifi_connected = false;
+    _device_ip = "0.0.0.0";
   }
 
   // ---- CORS preflight ----

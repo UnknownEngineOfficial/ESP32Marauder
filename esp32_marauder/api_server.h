@@ -10,10 +10,10 @@
 
 // Default hotspot credentials (user-configurable)
 #ifndef API_HOTSPOT_SSID
-  #define API_HOTSPOT_SSID "Julius-iPhone"
+  #define API_HOTSPOT_SSID "CHANGE_ME_HOTSPOT_SSID"
 #endif
 #ifndef API_HOTSPOT_PASSWORD
-  #define API_HOTSPOT_PASSWORD "changeme"
+  #define API_HOTSPOT_PASSWORD "CHANGE_ME_HOTSPOT_PASSWORD"
 #endif
 
 #define API_MDNS_NAME "marauder"
