@@ -169,6 +169,13 @@
 
 #define WIFI_ATTACK_FUNNY_BEACON 99 
 
+// Aliases for API Server / legacy references
+#define WIFI_SCAN_SAE        WIFI_SCAN_SAE_COMMIT
+#define WIFI_SCAN_BLE        100
+#define WIFI_SCAN_PINE       WIFI_SCAN_PINESCAN
+#define WIFI_SCAN_MULTI_SSID WIFI_SCAN_MULTISSID
+#define WIFI_PACKET_RATE     WIFI_SCAN_PACKET_RATE
+
 #define BASE_MULTIPLIER 4
 
 #define ANALYZER_NAME_REFRESH 100 // Number of events to refresh the name

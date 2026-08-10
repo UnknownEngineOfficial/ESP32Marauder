@@ -1102,6 +1102,9 @@ extern "C" {
                 wifi_scan_obj.bt_cb_busy = false;
                 return;
               }
+            #else
+              const std::vector<unsigned char>& payLoad = advertisedDevice->getPayload();
+              size_t len = payLoad.size();
             #endif
 
             bool match = false;
@@ -1189,6 +1192,9 @@ extern "C" {
             #ifndef HAS_NIMBLE_2
               uint8_t* payLoad = advertisedDevice->getPayload();
               size_t len = advertisedDevice->getPayloadLength();
+            #else
+              const std::vector<unsigned char>& payLoad = advertisedDevice->getPayload();
+              size_t len = payLoad.size();
             #endif
 
             bool match = false;

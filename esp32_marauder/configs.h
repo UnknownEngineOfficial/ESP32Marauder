@@ -425,6 +425,7 @@
     //#define FLIPPER_ZERO_HAT
     //#define HAS_BATTERY
     #define HAS_BT
+    #define HAS_NIMBLE_2
     #define HAS_IDF_3
     //#define HAS_BUTTONS
     #define HAS_BLACKHAT_LED
@@ -434,7 +435,6 @@
     //#define HAS_SD
     //#define HAS_TEMP_SENSOR
     //#define HAS_GPS
-    //#define HAS_NIMBLE_2
   #endif
 
   #ifdef MARAUDER_FLIPPER
