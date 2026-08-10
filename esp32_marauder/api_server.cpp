@@ -591,7 +591,7 @@ void ApiServer::handleAPInfo(AsyncWebServerRequest *request) {
     doc["bssid"] = macStr;
     doc["channel"] = ap.channel;
     doc["rssi"] = ap.rssi;
-    doc["security"] = wifi_scan_obj.security_int_to_string(ap.encryption_type);
+    doc["security"] = wifi_scan_obj.security_int_to_string(ap.sec);
     doc["selected"] = ap.selected;
     doc["stations"] = ap.stations;
     doc["wps"] = ap.wps;
@@ -610,7 +610,7 @@ void ApiServer::handleAPInfo(AsyncWebServerRequest *request) {
         o["bssid"] = macStr;
         o["channel"] = ap.channel;
         o["rssi"] = ap.rssi;
-        o["security"] = wifi_scan_obj.security_int_to_string(ap.encryption_type);
+        o["security"] = wifi_scan_obj.security_int_to_string(ap.sec);
         o["selected"] = ap.selected;
         o["stations"] = ap.stations;
       }
@@ -925,7 +925,12 @@ void ApiServer::handleLed(AsyncWebServerRequest *request) {
       String hex = getArg(request, "hex", "#FF0000");
       long color = strtol(hex.c_str() + 1, NULL, 16);
       #ifdef HAS_BLACKHAT_LED
-        blackhat_led_obj.setColor((uint32_t)color);
+        uint8_t r = (color >> 16) & 0xFF;
+        uint8_t g = (color >> 8) & 0xFF;
+        uint8_t b = color & 0xFF;
+        blackhat_led_obj.setRed(r > 0);
+        blackhat_led_obj.setGreen(g > 0);
+        blackhat_led_obj.setBlue(b > 0);
       #else
         led_obj.setColor((uint32_t)color);
       #endif
@@ -933,14 +938,18 @@ void ApiServer::handleLed(AsyncWebServerRequest *request) {
       doc["color"] = hex;
     } else if (action == "rainbow") {
       #ifdef HAS_BLACKHAT_LED
-        blackhat_led_obj.setMode(MODE_RAINBOW);
+        blackhat_led_obj.blinkRed(3, 200);
+        blackhat_led_obj.blinkGreen(3, 200);
+        blackhat_led_obj.blinkBlue(3, 200);
       #else
         led_obj.setMode(MODE_RAINBOW);
       #endif
       doc["led"] = "rainbow";
     } else if (action == "off") {
       #ifdef HAS_BLACKHAT_LED
-        blackhat_led_obj.setMode(MODE_OFF);
+        blackhat_led_obj.setRed(false);
+        blackhat_led_obj.setGreen(false);
+        blackhat_led_obj.setBlue(false);
       #else
         led_obj.setMode(MODE_OFF);
       #endif
@@ -1034,7 +1043,7 @@ void ApiServer::handleDataAP(AsyncWebServerRequest *request) {
       o["bssid"] = macStr;
       o["channel"] = ap.channel;
       o["rssi"] = ap.rssi;
-      o["security"] = wifi_scan_obj.security_int_to_string(ap.encryption_type);
+      o["security"] = wifi_scan_obj.security_int_to_string(ap.sec);
       o["selected"] = ap.selected;
       o["stations"] = ap.stations;
       o["wps"] = ap.wps;
@@ -1058,10 +1067,8 @@ void ApiServer::handleDataStation(AsyncWebServerRequest *request) {
       o["index"] = i;
       o["mac"] = macStr;
       o["ap_index"] = st.ap;
-      o["channel"] = st.channel;
-      o["rssi"] = st.rssi;
+      o["packets"] = st.packets;
       o["selected"] = st.selected;
-      o["probes"] = st.probes;
     }
   }
   doc["total"] = stations ? stations->size() : 0;

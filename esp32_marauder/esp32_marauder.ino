@@ -443,7 +443,7 @@ void setup()
   // Start API Server (Web Interface control)
   #ifdef HAS_API_SERVER
     api_server_obj.begin(API_HOTSPOT_SSID, API_HOTSPOT_PASSWORD);
-    Serial.println(F("[API] Ready at http://" + api_server_obj.getDeviceIP() + " or http://marauder.local"));
+    Serial.println("[API] Ready at http://" + api_server_obj.getDeviceIP() + " or http://marauder.local");
   #endif
 }
 
