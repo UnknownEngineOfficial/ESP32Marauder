@@ -314,8 +314,8 @@ static NimBLEAddress pendingAddress(
     BLE_ADDR_PUBLIC
 );
 
-bool connectionPending = false;
-bool operationInProgress = false;
+extern bool connectionPending;
+extern bool operationInProgress;
 #endif
 
 #pragma pack(push, 1)

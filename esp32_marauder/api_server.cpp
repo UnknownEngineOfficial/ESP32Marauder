@@ -34,7 +34,7 @@ extern LinkedList<ProbeReqSsid>* probe_req_ssids;
 #if defined(HAS_NEOPIXEL_LED) || defined(HAS_BLACKHAT_LED)
   #ifdef HAS_BLACKHAT_LED
     #include "BlackHatLED.h"
-    extern BlackHatLED blackhat_led_obj;
+    extern BlackHatLED bh_led;
   #else
     #include "LedInterface.h"
     extern LedInterface led_obj;
@@ -928,9 +928,9 @@ void ApiServer::handleLed(AsyncWebServerRequest *request) {
         uint8_t r = (color >> 16) & 0xFF;
         uint8_t g = (color >> 8) & 0xFF;
         uint8_t b = color & 0xFF;
-        blackhat_led_obj.setRed(r > 0);
-        blackhat_led_obj.setGreen(g > 0);
-        blackhat_led_obj.setBlue(b > 0);
+        bh_led.setRed(r > 0);
+        bh_led.setGreen(g > 0);
+        bh_led.setBlue(b > 0);
       #else
         led_obj.setColor((uint32_t)color);
       #endif
@@ -938,18 +938,18 @@ void ApiServer::handleLed(AsyncWebServerRequest *request) {
       doc["color"] = hex;
     } else if (action == "rainbow") {
       #ifdef HAS_BLACKHAT_LED
-        blackhat_led_obj.blinkRed(3, 200);
-        blackhat_led_obj.blinkGreen(3, 200);
-        blackhat_led_obj.blinkBlue(3, 200);
+        bh_led.blinkRed(3, 200);
+        bh_led.blinkGreen(3, 200);
+        bh_led.blinkBlue(3, 200);
       #else
         led_obj.setMode(MODE_RAINBOW);
       #endif
       doc["led"] = "rainbow";
     } else if (action == "off") {
       #ifdef HAS_BLACKHAT_LED
-        blackhat_led_obj.setRed(false);
-        blackhat_led_obj.setGreen(false);
-        blackhat_led_obj.setBlue(false);
+        bh_led.setRed(false);
+        bh_led.setGreen(false);
+        bh_led.setBlue(false);
       #else
         led_obj.setMode(MODE_OFF);
       #endif
