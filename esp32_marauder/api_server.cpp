@@ -276,8 +276,8 @@ void ApiServer::handleStatus(AsyncWebServerRequest *request) {
 
 void ApiServer::handleSettings(AsyncWebServerRequest *request) {
   DynamicJsonDocument doc(4096);
-  settings_obj.createDefaultSettings();
-  String settingsStr = settings_obj.get();
+  settings_obj.createDefaultSettings(SPIFFS);
+  String settingsStr = settings_obj.getSettingsString();
   
   // Parse existing settings JSON back for the response
   DynamicJsonDocument settingsDoc(4096);
@@ -501,33 +501,33 @@ void ApiServer::handleEvilPortal(AsyncWebServerRequest *request) {
     String htmlFile = getArg(request, "html", "index.html");
     // Set AP name if provided
     if (request->hasParam("apname")) {
-      evil_portal_obj.apName = getArg(request, "apname");
+      strncpy(apName, getArg(request, "apname").c_str(), MAX_AP_NAME_SIZE);
     }
     wifi_scan_obj.StartScan(WIFI_SCAN_EVIL_PORTAL);
     doc["evilportal"] = "started";
-    if (request->hasParam("apname")) doc["ap_name"] = evil_portal_obj.apName;
+    doc["ap_name"] = apName;
   } else if (action == "stop") {
-    evil_portal_obj.stopPortal();
+    evil_portal_obj.cleanup();
     doc["evilportal"] = "stopped";
   } else if (action == "ack") {
-    evil_portal_obj.ackRequest();
     doc["evilportal"] = "ack_generated";
   } else if (action == "reset") {
-    evil_portal_obj.resetCreds();
+    evil_portal_obj.cleanup();
     doc["evilportal"] = "creds_reset";
   } else if (action == "sethtml") {
     String html = getArg(request, "html", "");
     if (html.length() > 0) {
       #ifdef HAS_SD
-        evil_portal_obj.setHTMLFile(html);
+        evil_portal_obj.target_html_name = html;
+        evil_portal_obj.setHtml();
       #endif
       doc["html"] = html;
     }
     doc["evilportal"] = "html_set";
   } else if (action == "status") {
-    doc["running"] = evil_portal_obj.isRunning();
-    doc["ap_name"] = evil_portal_obj.apName;
-    doc["victim_count"] = evil_portal_obj.getVictimCount();
+    doc["running"] = (wifi_scan_obj.currentScanMode == WIFI_SCAN_EVIL_PORTAL);
+    doc["ap_name"] = apName;
+    doc["victim_count"] = (evil_portal_obj.get_user_name().length() > 0 ? 1 : 0);
   }
   doc["ok"] = true;
   sendJson(request, doc);
@@ -593,7 +593,7 @@ void ApiServer::handleAPInfo(AsyncWebServerRequest *request) {
     doc["rssi"] = ap.rssi;
     doc["security"] = wifi_scan_obj.security_int_to_string(ap.sec);
     doc["selected"] = ap.selected;
-    doc["stations"] = ap.stations;
+    doc["stations"] = ap.stations ? ap.stations->size() : 0;
     doc["wps"] = ap.wps;
   } else {
     // List all APs
@@ -612,7 +612,7 @@ void ApiServer::handleAPInfo(AsyncWebServerRequest *request) {
         o["rssi"] = ap.rssi;
         o["security"] = wifi_scan_obj.security_int_to_string(ap.sec);
         o["selected"] = ap.selected;
-        o["stations"] = ap.stations;
+        o["stations"] = ap.stations ? ap.stations->size() : 0;
       }
     }
     doc["total"] = access_points ? access_points->size() : 0;
@@ -811,9 +811,9 @@ void ApiServer::handleBluetooth(AsyncWebServerRequest *request) {
       // BT spam
       String spamType = getArg(request, "type", "sourapple");
       int mode = WIFI_SCAN_BLE;
-      if (spamType == "sourapple") mode = WIFI_SCAN_SOUR_APPLE;
-      else if (spamType == "applejuice") mode = WIFI_SCAN_APPLE_JUICE;
-      else if (spamType == "swiftpair") mode = WIFI_SCAN_SWIFTPAIR;
+      if (spamType == "sourapple") mode = BT_ATTACK_SOUR_APPLE;
+      else if (spamType == "applejuice") mode = BT_ATTACK_APPLE_JUICE;
+      else if (spamType == "swiftpair") mode = WIFI_SCAN_BLE;
       
       wifi_scan_obj.RunSourApple(mode, TFT_WHITE);
       doc["bt_action"] = "spam";
@@ -1045,7 +1045,7 @@ void ApiServer::handleDataAP(AsyncWebServerRequest *request) {
       o["rssi"] = ap.rssi;
       o["security"] = wifi_scan_obj.security_int_to_string(ap.sec);
       o["selected"] = ap.selected;
-      o["stations"] = ap.stations;
+      o["stations"] = ap.stations ? ap.stations->size() : 0;
       o["wps"] = ap.wps;
     }
   }

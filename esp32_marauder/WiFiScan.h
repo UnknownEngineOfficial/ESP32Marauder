@@ -769,6 +769,8 @@ class WiFiScan
     void RunProbeScan(uint8_t scan_mode, uint16_t color);
     void RunSAEScan(uint8_t scan_mode, uint16_t color);
     void RunPacketMonitor(uint8_t scan_mode, uint16_t color);
+  public:
+    // Remote-accessible scan launchers (API Server)
     void RunBluetoothScan(uint8_t scan_mode, uint16_t color);
     void RunSourApple(uint8_t scan_mode, uint16_t color);
     void RunFindMyLive(uint8_t scan_mode, uint16_t color);
@@ -783,7 +785,6 @@ class WiFiScan
     void displayAPStats();
 
 
-  public:
     volatile bool bt_cb_busy = false;
     volatile bool bt_pending_clear = false;
 
