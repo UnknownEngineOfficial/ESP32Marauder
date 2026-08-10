@@ -885,7 +885,7 @@ void ApiServer::handleGPS(AsyncWebServerRequest *request) {
     doc["lat"] = gps_obj.getLat();
     doc["lon"] = gps_obj.getLon();
     doc["alt"] = gps_obj.getAlt();
-    doc["satellites"] = gps_obj.getSats();
+    doc["satellites"] = gps_obj.getNumSats();
     doc["accuracy"] = gps_obj.getAccuracy();
     doc["datetime"] = gps_obj.getDatetime();
     doc["nmea"] = gps_obj.getNmea();
@@ -932,7 +932,10 @@ void ApiServer::handleLed(AsyncWebServerRequest *request) {
         bh_led.setGreen(g > 0);
         bh_led.setBlue(b > 0);
       #else
-        led_obj.setColor((uint32_t)color);
+        uint8_t r = (color >> 16) & 0xFF;
+        uint8_t g = (color >> 8) & 0xFF;
+        uint8_t b = color & 0xFF;
+        led_obj.setColor(r, g, b);
       #endif
       doc["led"] = "color_set";
       doc["color"] = hex;
