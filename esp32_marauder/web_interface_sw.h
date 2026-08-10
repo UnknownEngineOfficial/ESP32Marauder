@@ -1,7 +1,6 @@
 #pragma once
-#include <pgmspace.h>
 
-// Auto-generated: web-interface/sw.js (1021 bytes)
+#include <Arduino.h>
 
 const char WEB_INTERFACE_SW_JS[] PROGMEM = 
   "// Marauder Control SW — cache-first, works when ESP32 is in promiscuous mode\n"
@@ -36,4 +35,5 @@ const char WEB_INTERFACE_SW_JS[] PROGMEM =
   "    })\n"
   "  );\n"
   "});\n"
-  "";
+  "\n"
+;

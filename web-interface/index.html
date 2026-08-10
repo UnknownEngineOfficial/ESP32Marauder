@@ -2,225 +2,423 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#060606">
 <link rel="manifest" href="/manifest.json">
 <title>Marauder</title>
 <style>
-:root{--bg:#0a0a0a;--surface:#141414;--border:#2a2a2a;--text:#e0e0e0;--dim:#888;--green:#0c6;--red:#f44;--yellow:#fa0;--accent:#0c6;--radius:8px}
+:root{--bg:#060606;--s:#111;--b:#222;--t:#ddd;--d:#888;--g:#0c6;--r:#f44;--y:#fa0;--a:#0c6;--rd:8px;--nav-h:52px}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',monospace;background:var(--bg);color:var(--text);padding:12px;max-width:800px;margin:0 auto;padding-bottom:60px}
-.offline-bar{display:none;position:fixed;top:0;left:0;right:0;background:var(--red);color:#fff;text-align:center;padding:6px;font-size:.7em;font-weight:bold;z-index:100}
-.offline-bar.show{display:block}
-.status-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
-.stat{font-size:.75em}.stat .label{color:var(--dim);text-transform:uppercase;font-size:.65em}.stat .val{font-weight:bold;font-size:1.1em}.val.ok{color:var(--green)}.val.err{color:var(--red)}.val.warn{color:var(--yellow)}
-.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px}
-.section h2{font-size:.85em;color:var(--dim);text-transform:uppercase;margin-bottom:8px;letter-spacing:.5px}
-.row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center}
-.btn{padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font:inherit;font-size:.78em;cursor:pointer;transition:all .15s;white-space:nowrap}
-.btn:hover{border-color:var(--accent);color:var(--accent)}
-.btn:active{background:var(--accent);color:var(--bg)}
-.btn.danger{border-color:var(--red);color:var(--red)}.btn.danger:hover{background:var(--red);color:var(--bg)}
-.btn.warn{border-color:var(--yellow);color:var(--yellow)}
-.btn.small{padding:4px 10px;font-size:.7em}
-table{width:100%;border-collapse:collapse;font-size:.72em;margin-top:6px}
-th,td{padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)}
-th{color:var(--dim);font-weight:normal;text-transform:uppercase;font-size:.85em}
-tr:hover{background:rgba(255,255,255,.03)}
-.badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.75em;background:var(--border)}
-.scroll-table{max-height:250px;overflow-y:auto}
-.toast{position:fixed;bottom:12px;right:12px;background:var(--green);color:var(--bg);padding:8px 16px;border-radius:var(--radius);font-size:.8em;z-index:99;animation:fadeIn .2s}
-.toast.err{background:var(--red)}
-.toast.warn{background:var(--yellow);color:var(--bg)}
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.install-btn{display:none;position:fixed;bottom:12px;left:12px;background:var(--accent);color:var(--bg);border:none;padding:10px 20px;border-radius:var(--radius);font:inherit;font-size:.8em;font-weight:bold;cursor:pointer;z-index:99;box-shadow:0 2px 8px rgba(0,0,0,.4)}
-.install-btn.show{display:block}
-#rawStats{font-size:.75em;display:flex;flex-wrap:wrap;gap:10px}
-#rawStats span b{color:var(--accent)}
+body{font:14px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--t);padding:0 0 var(--nav-h) 0;max-width:100vw;overflow-x:hidden}
+.page{display:none;padding:10px 12px;padding-bottom:calc(var(--nav-h)+20px)}
+.page.active{display:block}
+nav{position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);background:var(--s);border-top:1px solid var(--b);display:flex;z-index:50}
+nav button{flex:1;background:none;border:none;color:var(--d);font-size:20px;cursor:pointer;transition:.15s;padding:4px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+nav button span{font-size:9px;text-transform:uppercase;letter-spacing:.3px}
+nav button.active{color:var(--a)}
+nav button:active{opacity:.6}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 0 10px;position:sticky;top:0;background:var(--bg);z-index:10;border-bottom:1px solid var(--b);margin-bottom:10px}
+.topbar h1{font-size:1em;font-weight:600;letter-spacing:.5px}
+.topbar .dot{width:8px;height:8px;border-radius:50%;background:var(--r);display:inline-block}
+.topbar .dot.ok{background:var(--g)}
+.section{background:var(--s);border:1px solid var(--b);border-radius:var(--rd);padding:10px;margin-bottom:8px}
+.section h2{font-size:.72em;color:var(--d);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px}
+.btn{padding:6px 10px;border:1px solid var(--b);border-radius:var(--rd);background:var(--s);color:var(--t);font:inherit;font-size:.7em;cursor:pointer;transition:.12s;white-space:nowrap}
+.btn:hover{border-color:var(--a);color:var(--a)}
+.btn:active{background:var(--a);color:var(--bg)}
+.btn.ac{border-color:var(--a);color:var(--a)}
+.btn.dg{border-color:var(--r);color:var(--r)}.btn.dg:hover{background:var(--r);color:var(--bg)}
+.btn.wn{border-color:var(--y);color:var(--y)}
+.btn.xs{padding:3px 7px;font-size:.65em}
+table{width:100%;border-collapse:collapse;font-size:.68em;margin-top:4px}
+th,td{padding:3px 5px;text-align:left;border-bottom:1px solid var(--b)}
+th{color:var(--d);font-weight:400;text-transform:uppercase;font-size:.8em}
+tr:hover{background:rgba(255,255,255,.025)}
+tr.sel{background:rgba(0,204,102,.1)}
+.badge{display:inline-block;padding:1px 5px;border-radius:3px;font-size:.7em;background:var(--b)}
+.scroll{max-height:220px;overflow-y:auto}
+input,select{background:var(--bg);border:1px solid var(--b);border-radius:4px;color:var(--t);padding:5px 8px;font:inherit;font-size:.72em;width:100%;max-width:200px}
+input:focus,select:focus{outline:none;border-color:var(--a)}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px}
+.stat{font-size:.7em}.stat .l{color:var(--d);font-size:.6em;text-transform:uppercase}.stat .v{font-weight:600;font-size:1.05em}.v.ok{color:var(--g)}.v.er{color:var(--r)}.v.wn{color:var(--y)}
+.toast{position:fixed;top:8px;right:8px;background:var(--g);color:var(--bg);padding:6px 12px;border-radius:var(--rd);font-size:.75em;z-index:99;animation:fade .2s;pointer-events:none}
+.toast.er{background:var(--r)}.toast.wn{background:var(--y);color:var(--bg)}
+@keyframes fade{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.offline{display:none;position:fixed;top:0;left:0;right:0;background:var(--r);color:#fff;text-align:center;padding:4px;font-size:.65em;font-weight:600;z-index:100}
+.offline.show{display:block}
+.modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);z-index:60;padding:20px;overflow-y:auto}
+.modal.show{display:flex;align-items:flex-start;justify-content:center}
+.modal>div{background:var(--s);border:1px solid var(--b);border-radius:var(--rd);padding:14px;max-width:400px;width:100%;margin-top:40px}
+.modal h3{font-size:.85em;margin-bottom:10px;color:var(--t)}
+.modal .close{float:right;background:none;border:none;color:var(--d);font-size:1.2em;cursor:pointer}
+.color-picker{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.color-picker input[type=color]{width:36px;height:36px;border:1px solid var(--b);border-radius:4px;cursor:pointer;background:var(--bg);padding:2px}
 </style>
 </head>
 <body>
+<div class="offline" id="offlineBar">OFFLINE — reconnecting…</div>
 
-<div class="offline-bar" id="offlineBar">⚠ ESP32 OFFLINE — reconnecting...</div>
-<button class="install-btn" id="installBtn" onclick="installPWA()">📲 Add to Home Screen</button>
-
-<div id="statusBar" class="status-bar"></div>
-
-<div class="section"><h2>📡 Scan</h2>
-<div class="row" id="scanBtns"></div>
-<button class="btn small danger" style="margin-top:4px" onclick="api('POST','/api/scan/stop')">Stop All</button>
+<!-- ====== PAGE: STATUS ====== -->
+<div class="page active" id="page-status">
+<div class="topbar"><h1>⚡ Marauder</h1><span class="dot" id="connDot"></span></div>
+<div class="statgrid" id="statusGrid"></div>
+<div class="section"><h2>Quick Actions</h2>
+<div class="row">
+<button class="btn ac" onclick="api('POST','/api/scan/start?type=all')">Scan All</button>
+<button class="btn dg" onclick="api('POST','/api/scan/stop')">Stop</button>
+<button class="btn dg" onclick="api('POST','/api/attack/stop')">Stop Atk</button>
+<button class="btn" onclick="api('POST','/api/clearlist?list=ap')">Clear APs</button>
+<button class="btn" onclick="api('POST','/api/clearlist?list=sta')">Clear Sta</button>
+<button class="btn" onclick="api('POST','/api/clearlist?list=ble')">Clear BLE</button>
+<button class="btn" onclick="navTo('settings');api('POST','/api/reboot')">Reboot</button>
+</div></div>
 </div>
 
-<div class="section"><h2>⚔️ Attack</h2>
-<div class="row" id="attackBtns"></div>
-<button class="btn small danger" style="margin-top:4px" onclick="api('POST','/api/attack/stop')">Stop Attacks</button>
+<!-- ====== PAGE: WIFI SCAN ====== -->
+<div class="page" id="page-wifi">
+<div class="topbar"><h1>📡 WiFi</h1><span class="dot" id="wifiDot"></span></div>
+<div class="section"><h2>Scans</h2>
+<div class="row" id="scanBtns"></div></div>
+<div class="section"><h2>Channel</h2>
+<div class="row">
+<select id="chSelect" onchange="api('POST','/api/channel?ch='+this.value)"><option>1</option></select>
+<button class="btn" onclick="api('POST','/api/channel?hop=1')">Hop</button>
+<button class="btn" onclick="api('POST','/api/channel?hop=0')">Stop Hop</button>
+</div></div>
+<div class="section"><h2>Lists</h2>
+<div class="row">
+<button class="btn" onclick="api('POST','/api/save?list=ap');toast('APs saved')">Save APs</button>
+<button class="btn" onclick="api('POST','/api/save?list=sta');toast('Stations saved')">Save Sta</button>
+<button class="btn" onclick="api('POST','/api/load?list=ap');toast('APs loaded')">Load APs</button>
+<button class="btn" onclick="api('POST','/api/load?list=sta');toast('Stations loaded')">Load Sta</button>
+<button class="btn" onclick="api('POST','/api/ssid?action=gen')">Gen SSIDs</button>
+<button class="btn dg" onclick="api('POST','/api/ssid?action=clear')">Clear SSIDs</button>
+</div></div>
+<div class="section"><h2>MAC Spoof</h2>
+<div class="row">
+<button class="btn" onclick="api('POST','/api/mac?type=randap')">Rand AP</button>
+<button class="btn" onclick="api('POST','/api/mac?type=randsta')">Rand Sta</button>
+<button class="btn" onclick="api('POST','/api/mac?type=cloneap')">Clone AP</button>
+<button class="btn" onclick="api('POST','/api/mac?type=clonesta')">Clone Sta</button>
+<button class="btn" onclick="api('POST','/api/mac?type=revert')">Revert</button>
+</div></div>
+<div class="section"><h2>AP List</h2>
+<div class="row">
+<button class="btn xs" onclick="loadAPs()">Refresh</button>
+<button class="btn xs" onclick="api('POST','/api/clearlist?list=ap')">Clear</button>
+<button class="btn xs" onclick="selAllAPs()">Select All</button>
+<button class="btn xs" onclick="api('POST','/api/ap/select?clear=1')">Deselect</button>
+<button class="btn xs ac" id="joinBtn" onclick="joinSelAP()">Join WiFi</button>
+</div>
+<div class="scroll"><table><thead><tr><th>#</th><th>SSID</th><th>BSSID</th><th>Ch</th><th>RSSI</th><th>Sec</th><th>WPS</th><th>Sel</th></tr></thead><tbody id="apBody"></tbody></table></div>
+</div>
+<div class="section"><h2>Stations</h2>
+<div class="scroll"><table><thead><tr><th>#</th><th>MAC</th><th>AP</th><th>Pkts</th><th>Sel</th></tr></thead><tbody id="staBody"></tbody></table></div>
+</div>
 </div>
 
-<div class="section"><h2>🔵 Bluetooth</h2>
-<div class="row" id="btBtns"></div>
+<!-- ====== PAGE: ATTACKS ====== -->
+<div class="page" id="page-attack">
+<div class="topbar"><h1>⚔️ Attacks</h1></div>
+<div class="section"><h2>WiFi Attacks</h2>
+<div class="row" id="atkDeauth"></div>
+<div class="row" style="margin-top:6px" id="atkBeacon"></div>
+<div class="row" style="margin-top:6px" id="atkOther"></div></div>
+<div class="section"><h2>Scanning Attacks</h2>
+<div class="row" id="atkScan"></div></div>
+<div class="section"><h2>Wardrive & Foxhunt</h2>
+<div class="row">
+<button class="btn wn" onclick="api('POST','/api/wardrive?action=start')">Wardrive Start</button>
+<button class="btn wn" onclick="api('POST','/api/wardrive?action=stop')">Wardrive Stop</button>
+<button class="btn wn" onclick="api('POST','/api/upload?dest=wigle')">Upload Wigle</button>
+<button class="btn wn" onclick="api('POST','/api/upload?dest=wdg')">Upload WDG</button>
+</div>
+<div class="row" style="margin-top:4px">
+<button class="btn wn" onclick="api('POST','/api/foxhunt?band=wifi')">Foxhunt WiFi</button>
+<button class="btn wn" onclick="api('POST','/api/foxhunt?band=bt')">Foxhunt BT</button>
+</div></div>
+<div class="section"><h2>Packet Stats</h2>
+<div id="rawStats" style="font-size:.7em;display:flex;flex-wrap:wrap;gap:8px"></div></div>
 </div>
 
-<div class="section"><h2>🌍 GPS & Wardrive</h2>
-<div class="row" id="gpsBtns"></div>
+<!-- ====== PAGE: BLUETOOTH ====== -->
+<div class="page" id="page-bt">
+<div class="topbar"><h1>🔵 Bluetooth</h1></div>
+<div class="section"><h2>BLE Scan</h2>
+<div class="row">
+<button class="btn" onclick="api('POST','/api/bt/scan?type=airtag')">Airtag</button>
+<button class="btn" onclick="api('POST','/api/bt/scan?type=flipper')">Flipper</button>
+<button class="btn" onclick="api('POST','/api/bt/scan?type=flock')">Flock</button>
+<button class="btn" onclick="api('POST','/api/bt/scan?type=meta')">Meta</button>
+<button class="btn" onclick="api('POST','/api/bt/scan?type=skim')">Skimmer</button>
+</div></div>
+<div class="section"><h2>BLE Spam</h2>
+<div class="row">
+<button class="btn wn" onclick="api('POST','/api/bt/spam?type=sourapple')">SourApple</button>
+<button class="btn wn" onclick="api('POST','/api/bt/spam?type=applejuice')">AppleJuice</button>
+<button class="btn wn" onclick="api('POST','/api/bt/spam?type=swiftpair')">SwiftPair</button>
+<button class="btn wn" onclick="api('POST','/api/bt/spam?type=google')">Google</button>
+<button class="btn wn" onclick="api('POST','/api/bt/spam?type=samsung')">Samsung</button>
+<button class="btn wn" onclick="api('POST','/api/bt/spam?type=windows')">Windows</button>
+<button class="btn wn" onclick="api('POST','/api/bt/spam?type=all')">ALL</button>
+</div></div>
+<div class="section"><h2>FindMy</h2>
+<div class="row">
+<button class="btn" onclick="api('POST','/api/bt/findmy?action=scan')">Scan</button>
+<button class="btn" onclick="api('POST','/api/bt/findmy?action=sound&tag_index=0')">Sound #0</button>
+<button class="btn" onclick="api('POST','/api/bt/findmy?action=sound&tag_index=1')">Sound #1</button>
+<button class="btn" onclick="api('POST','/api/bt/findmy?action=sound&tag_index=2')">Sound #2</button>
+</div></div>
+<div class="section"><h2>BLE Devices</h2>
+<div class="scroll"><table><thead><tr><th>#</th><th>Name</th><th>MAC</th><th>RSSI</th></tr></thead><tbody id="bleBody"></tbody></table></div>
+</div>
 </div>
 
-<div class="section"><h2>🔑 Evil Portal</h2>
-<div class="row" id="epBtns"></div>
+<!-- ====== PAGE: EVIL PORTAL ====== -->
+<div class="page" id="page-portal">
+<div class="topbar"><h1>🔑 Evil Portal</h1></div>
+<div class="section"><h2>Controls</h2>
+<div class="row">
+<button class="btn wn" onclick="epStart()">Start Portal</button>
+<button class="btn dg" onclick="api('POST','/api/evilportal?action=stop')">Stop</button>
+<button class="btn" onclick="api('POST','/api/evilportal?action=status')">Status</button>
+<button class="btn" onclick="api('POST','/api/evilportal?action=ack')">Gen ACK</button>
+<button class="btn" onclick="api('POST','/api/evilportal?action=reset')">Reset Creds</button>
+</div></div>
+<div class="section"><h2>Configuration</h2>
+<div class="row">
+<input id="apName" placeholder="AP Name" value="FreeWiFi">
+<button class="btn" onclick="epStart()">Apply</button>
+</div>
+<div class="row" style="margin-top:4px">
+<select id="htmlFile"><option>index.html</option></select>
+<button class="btn" onclick="api('POST','/api/evilportal?action=sethtml&html='+document.getElementById('htmlFile').value)">Set HTML</button>
+</div></div>
+<div class="section"><h2>Status</h2>
+<div id="epStatus" style="font-size:.7em;color:var(--d)">Not started</div></div>
 </div>
 
-<div class="section"><h2>📋 AP List</h2>
-<div class="row" style="margin-bottom:6px">
-<button class="btn small" onclick="loadAPs()">Refresh</button>
-<button class="btn small" onclick="api('POST','/api/clearlist?list=ap')">Clear</button>
+<!-- ====== PAGE: GPS ====== -->
+<div class="page" id="page-gps">
+<div class="topbar"><h1>🌍 GPS</h1></div>
+<div class="section"><h2>Live Data</h2>
+<div class="statgrid" id="gpsGrid"></div></div>
+<div class="section"><h2>Tracker</h2>
+<div class="row">
+<button class="btn" onclick="api('POST','/api/gps/tracker?action=start')">Start</button>
+<button class="btn" onclick="api('POST','/api/gps/tracker?action=stop')">Stop</button>
+<button class="btn" onclick="api('POST','/api/wardrive?action=poi&label='+(prompt('POI label')||'checkpoint'))">Tag POI</button>
+</div></div>
+<div class="section"><h2>Raw NMEA</h2>
+<div class="scroll" style="max-height:100px"><pre id="nmeaOut" style="font-size:.6em;color:var(--d);white-space:pre-wrap"></pre></div>
 </div>
-<div class="scroll-table"><table id="apTable"><thead><tr><th>#</th><th>SSID</th><th>BSSID</th><th>Ch</th><th>RSSI</th><th>Sec</th></tr></thead><tbody></tbody></table></div>
 </div>
 
-<div class="section"><h2>📊 Stations</h2>
-<div class="scroll-table"><table id="staTable"><thead><tr><th>#</th><th>MAC</th><th>AP</th><th>Pkts</th></tr></thead><tbody></tbody></table></div>
+<!-- ====== PAGE: SETTINGS ====== -->
+<div class="page" id="page-settings">
+<div class="topbar"><h1>⚙️ Settings</h1></div>
+<div class="section"><h2>System</h2>
+<div class="row">
+<button class="btn dg" onclick="if(confirm('Reboot ESP32?'))api('POST','/api/reboot')">Reboot</button>
+<button class="btn" onclick="loadSettings()">Load Settings</button>
+<button class="btn" onclick="api('POST','/api/settings?save=1')">Save</button>
+</div></div>
+<div class="section"><h2>LED</h2>
+<div class="row">
+<div class="color-picker">
+<input type="color" id="ledColor" value="#00cc66"><button class="btn" onclick="api('POST','/api/led?action=color&hex='+document.getElementById('ledColor').value)">Set</button>
+</div></div>
+<div class="row" style="margin-top:4px">
+<button class="btn" onclick="api('POST','/api/led?action=rainbow')">Rainbow</button>
+<button class="btn" onclick="api('POST','/api/led?action=off')">Off</button>
+</div></div>
+<div class="section"><h2>Settings</h2>
+<div class="scroll" id="settingsList"></div></div>
+<div class="section"><h2>SD Files</h2>
+<div class="row">
+<button class="btn xs" onclick="loadFiles()">Refresh</button>
+<button class="btn xs" onclick="uploadFile()">Upload</button>
+</div>
+<div id="fileList" style="font-size:.68em;margin-top:4px"></div>
+</div>
 </div>
 
-<div class="section"><h2>🟦 BLE</h2>
-<div class="scroll-table"><table id="bleTable"><thead><tr><th>#</th><th>Name</th><th>MAC</th><th>RSSI</th></tr></thead><tbody></tbody></table></div>
-</div>
-
-<div class="section"><h2>📈 Packet Stats</h2><div id="rawStats"></div></div>
+<!-- ====== NAV ====== -->
+<nav>
+<button class="active" onclick="navTo('status')">📊<span>Status</span></button>
+<button onclick="navTo('wifi')">📡<span>WiFi</span></button>
+<button onclick="navTo('attack')">⚔️<span>Attack</span></button>
+<button onclick="navTo('bt')">🔵<span>BT</span></button>
+<button onclick="navTo('portal')">🔑<span>Portal</span></button>
+<button onclick="navTo('gps')">🌍<span>GPS</span></button>
+<button onclick="navTo('settings')">⚙️<span>Settings</span></button>
+</nav>
+<div id="toast"></div>
 
 <script>
-// --- Offline resilience ---
-var IS_ONLINE=false,OFFLINE_SINCE=0,RECONNECT_INTERVAL=2000;
+// --- State ---
+var IS_ONLINE=false,OFFLINE_SINCE=0,currentPage='status';
 
-function toast(msg,err){var t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove()},2500)}
+// --- Navigation ---
+function navTo(p){
+  currentPage=p;
+  document.querySelectorAll('.page').forEach(function(x){x.classList.remove('active')});
+  document.querySelectorAll('nav button').forEach(function(x){x.classList.remove('active')});
+  document.getElementById('page-'+p).classList.add('active');
+  var navBtn=document.querySelector('nav button[onclick="navTo(\''+p+'\')"]');
+  if(navBtn)navBtn.classList.add('active');
+  if(p==='wifi')loadAPs();
+  if(p==='bt')loadBLE();
+  if(p==='gps')loadGPS();
+  if(p==='settings')loadSettings();
+  if(p==='attack')loadRawStats();
+  if(p==='portal')loadEPStatus();
+}
 
+// --- Toast ---
+function toast(msg,err){
+  var t=document.getElementById('toast');t.className='toast'+(err?' '+err:'');
+  t.textContent=msg;clearTimeout(t._t);t._t=setTimeout(function(){t.textContent=''},2000)
+}
+
+// --- API ---
 async function api(method,path,body){
-  if(!IS_ONLINE){return null}
+  if(!IS_ONLINE){toast('Offline','er');return null}
   try{
-    var opts={method:method,signal:AbortSignal.timeout(5000)};
+    var opts={method:method,signal:AbortSignal.timeout(8000)};
     if(body){opts.headers={'Content-Type':'application/json'};opts.body=JSON.stringify(body)}
     var res=await fetch(path,opts);
-    if(!res.ok) throw new Error('HTTP '+res.status);
+    if(!res.ok)throw new Error('HTTP '+res.status);
     return await res.json()
   }catch(e){
-    if(IS_ONLINE){setOffline()} // only transition if we were online
+    if(IS_ONLINE)setOffline();
     return null
   }
 }
+function setOffline(){if(IS_ONLINE){IS_ONLINE=false;OFFLINE_SINCE=Date.now();document.getElementById('offlineBar').classList.add('show')}}
+function setOnline(){if(!IS_ONLINE){IS_ONLINE=true;document.getElementById('offlineBar').classList.remove('show');toast('Reconnected!')}}
 
-function setOffline(){
-  if(IS_ONLINE){IS_ONLINE=false;OFFLINE_SINCE=Date.now();document.getElementById('offlineBar').classList.add('show');toast('ESP32 offline — will reconnect','warn')}
-}
-function setOnline(){
-  if(!IS_ONLINE){IS_ONLINE=true;document.getElementById('offlineBar').classList.remove('show');toast('ESP32 reconnected!')}
-}
-
-async function checkConnection(){
-  try{
-    var res=await fetch('/api/status',{signal:AbortSignal.timeout(3000)});
-    if(res.ok){setOnline();return true}
-  }catch(e){}
+// --- Connection check ---
+async function checkConn(){
+  try{var r=await fetch('/api/status',{signal:AbortSignal.timeout(4000)});if(r.ok){setOnline();return true}}catch(e){}
   setOffline();return false
 }
 
-// --- UI ---
-var scanMap={0:'Idle',2:'AP',1:'Probe',3:'PWN',4:'EAPOL',5:'DeauthSniff',6:'All',7:'Packet',8:'Beacon',9:'Rickroll',15:'BeaconList',20:'Deauth',21:'APSpam',25:'Raw',26:'Station',29:'Foxhunt',30:'EvilPortal',31:'GPS',32:'Wardrive',46:'Channel',48:'PktRate',50:'PineScan',51:'MultiSSID',56:'BadMSG',61:'Sleep'};
+// --- Status page ---
+var scanNames={0:'Idle',1:'Probe',2:'AP',3:'PWN',4:'EAPOL',5:'DeauthSniff',6:'All',7:'Packet',8:'BeaconSpam',9:'Rickroll',12:'ESP',15:'BeaconList',16:'TargetAP',18:'Auth',19:'Mimic',20:'Deauth',21:'APSpam',22:'TgtAPFull',23:'ActEAPOL',25:'Raw',26:'Station',29:'Foxhunt',30:'EvilPortal',31:'GPS',32:'Wardrive',36:'SourApple',46:'ChanAnalyzer',48:'PktRate',50:'PineScan',51:'MultiSSID',56:'BadMSG',61:'Sleep',82:'AppleJuice'};
 
 async function loadStatus(){
-  var d=await api('GET','/api/status');
-  if(!d){fillOfflineStatus();return}
-  document.getElementById('statusBar').innerHTML=
-  '<div class="stat"><div class="label">Version</div><div class="val">'+d.version+'</div></div>'+
-  '<div class="stat"><div class="label">Board</div><div class="val">'+d.hardware+'</div></div>'+
-  '<div class="stat"><div class="label">WiFi</div><div class="val '+(d.wifi_connected?'ok':'err')+'">'+(d.wifi_connected?'Connected':d.wifi_ap_mode?'AP Mode':'Off')+'</div></div>'+
-  '<div class="stat"><div class="label">Scan</div><div class="val">'+(scanMap[d.current_scan]||d.current_scan)+'</div></div>'+
-  '<div class="stat"><div class="label">Ch</div><div class="val">'+d.channel+'</div></div>'+
-  '<div class="stat"><div class="label">APs</div><div class="val">'+(d.ap_count||0)+'</div></div>'+
-  '<div class="stat"><div class="label">Sta</div><div class="val">'+(d.station_count||0)+'</div></div>'+
-  '<div class="stat"><div class="label">BLE</div><div class="val">'+(d.ble_count||0)+'</div></div>'+
-  '<div class="stat"><div class="label">Heap</div><div class="val">'+Math.round((d.free_heap||0)/1024)+'K</div></div>'+
-  (d.battery_pct!==undefined?'<div class="stat"><div class="label">Bat</div><div class="val">'+d.battery_pct+'%</div></div>':'')+
-  (d.gps_has_fix?'<div class="stat"><div class="label">GPS</div><div class="val ok">Fixed</div></div>':'')
-}
-function fillOfflineStatus(){
-  document.getElementById('statusBar').innerHTML=
-  '<div class="stat"><div class="label">Status</div><div class="val err">OFFLINE</div></div>'+
-  '<div class="stat"><div class="label">Since</div><div class="val warn">'+Math.round((Date.now()-OFFLINE_SINCE)/1000)+'s</div></div>'
+  var d=await api('GET','/api/status');if(!d)return;
+  var h='<div class="stat"><div class="l">Version</div><div class="v">'+d.version+'</div></div>';
+  h+='<div class="stat"><div class="l">Board</div><div class="v">'+d.hardware+'</div></div>';
+  h+='<div class="stat"><div class="l">WiFi</div><div class="v '+(d.wifi_connected?'ok':'er')+'">'+(d.wifi_connected?'Connected':d.wifi_ap_mode?'AP Mode':'Off')+'</div></div>';
+  h+='<div class="stat"><div class="l">Scan</div><div class="v">'+(scanNames[d.current_scan]||d.current_scan)+'</div></div>';
+  h+='<div class="stat"><div class="l">Channel</div><div class="v">'+d.channel+'</div></div>';
+  h+='<div class="stat"><div class="l">APs</div><div class="v ok">'+(d.ap_count||0)+'</div></div>';
+  h+='<div class="stat"><div class="l">Stations</div><div class="v">'+(d.station_count||0)+'</div></div>';
+  h+='<div class="stat"><div class="l">BLE</div><div class="v">'+(d.ble_count||0)+'</div></div>';
+  h+='<div class="stat"><div class="l">SSIDs</div><div class="v">'+(d.ssid_count||0)+'</div></div>';
+  h+='<div class="stat"><div class="l">Heap</div><div class="v">'+Math.round((d.free_heap||0)/1024)+'KB</div></div>';
+  h+='<div class="stat"><div class="l">Uptime</div><div class="v">'+Math.round((d.uptime_ms||0)/1000)+'s</div></div>';
+  if(d.battery_pct!==undefined)h+='<div class="stat"><div class="l">Battery</div><div class="v">'+d.battery_pct+'%</div></div>';
+  if(d.gps_has_fix)h+='<div class="stat"><div class="l">GPS</div><div class="v ok">Fixed</div></div>';
+  document.getElementById('statusGrid').innerHTML=h||'<span style="color:var(--r)">OFFLINE</span>';
+  if(d.wifi_connected){document.getElementById('connDot').classList.add('ok');try{document.getElementById('wifiDot').classList.add('ok')}catch(e){}}
+  else{document.getElementById('connDot').classList.remove('ok');try{document.getElementById('wifiDot').classList.remove('ok')}catch(e){}}
 }
 
-// --- Build buttons ---
-(function(){
+// --- WiFi page ---
+(function buildWifiPage(){
   var scans=[['AP','ap'],['Station','sta'],['All','all'],['Probe','probe'],['PWN','pwn'],['DeauthSniff','deauth'],['EAPOL','eapol'],['Raw','raw'],['Beacon','beacon'],['Packet','packet'],['SAE','sae'],['PineScan','pinescan'],['MultiSSID','multissid']];
-  document.getElementById('scanBtns').innerHTML=scans.map(function(s){return '<button class="btn small" onclick="api(\'POST\',\'/api/scan/start?type='+s[1]+'\');toast(\''+s[0]+' started\')">'+s[0]+'</button>'}).join('');
+  document.getElementById('scanBtns').innerHTML=scans.map(function(s){return'<button class="btn xs" onclick="api(\'POST\',\'/api/scan/start?type='+s[1]+'\');toast(\''+s[0]+' started\')">'+s[0]+'</button>'}).join('');
+  
+  // Channel selector
+  var ch='';for(var i=1;i<=14;i++)ch+='<option value="'+i+'">Ch '+i+'</option>';
+  document.getElementById('chSelect').innerHTML=ch;
+
+  // Attack buttons  
+  document.getElementById('atkDeauth').innerHTML='<button class="btn dg" onclick="api(\'POST\',\'/api/attack/start?type=deauth\')">Deauth</button><button class="btn dg" onclick="api(\'POST\',\'/api/attack/start?type=deauth&mode=manual\')">Deauth Manual</button>';
+  document.getElementById('atkBeacon').innerHTML='<button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=beacon\')">Beacon Spam</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=beacon&mode=list\')">Beacon List</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=beacon&mode=rickroll\')">Rickroll</button>';
+  document.getElementById('atkOther').innerHTML='<button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=probe\')">Probe</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=badmsg\')">BadMSG</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=sae\')">SAE</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=csa\')">CSA</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=quiet\')">Quiet</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=apspam\')">AP Spam</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=mimic\')">Mimic</button>';
+  document.getElementById('atkScan').innerHTML='<button class="btn wn" onclick="api(\'POST\',\'/api/pingscan\')">Ping Scan</button><button class="btn wn" onclick="api(\'POST\',\'/api/portscan\')">Port Scan</button><button class="btn wn" onclick="api(\'POST\',\'/api/mactrack\')">MAC Track</button><button class="btn wn" onclick="api(\'POST\',\'/api/karma?action=start\')">Karma</button>';
 })();
 
-(function(){document.getElementById('attackBtns').innerHTML=
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=deauth\')">Deauth</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=beacon\')">BeaconSpam</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=beacon&mode=list\')">BeaconList</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=beacon&mode=rickroll\')">Rickroll</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=probe\')">ProbeAtk</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/attack/start?type=badmsg\')">BadMSG</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/wardrive?action=start\')">Wardrive</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/foxhunt?band=wifi\')">Foxhunt</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/pingscan\')">PingScan</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/portscan\')">PortScan</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/mactrack\')">MACTrack</button>'+
-'<button class="btn small warn" onclick="api(\'POST\',\'/api/karma?action=start\')">Karma</button>';})();
-
-(function(){document.getElementById('btBtns').innerHTML=
-'<button class="btn small" onclick="api(\'POST\',\'/api/bt/scan?type=airtag\')">BLE Scan</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/bt/spam?type=sourapple\')">SourApple</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/bt/spam?type=applejuice\')">AppleJuice</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/bt/spam?type=swiftpair\')">SwiftPair</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/bt/findmy?action=scan\')">FindMyScan</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/bt/findmy?action=sound\')">FindMySound</button>';})();
-
-(function(){document.getElementById('gpsBtns').innerHTML=
-'<button class="btn small" onclick="loadGPS()">GPS Data</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/gps/tracker?action=start\')">StartTracker</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/gps/tracker?action=stop\')">StopTracker</button>'+
-'<div id="gpsData" style="font-size:0.7em;margin-top:6px;color:var(--dim)"></div>';})();
-
-(function(){document.getElementById('epBtns').innerHTML=
-'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=start\')">Start</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=stop\')">Stop</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=status\')">Status</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=ack\')">GenAck</button>'+
-'<button class="btn small" onclick="api(\'POST\',\'/api/evilportal?action=reset\')">ResetCreds</button>';})();
-
 // --- Data loaders ---
-async function loadAPs(){var d=await api('GET','/api/data/ap');if(!d||!d.access_points)return;document.querySelector('#apTable tbody').innerHTML=d.access_points.map(function(a){return'<tr><td>'+a.index+'</td><td>'+(a.essid||'[hidden]')+'</td><td style="font-size:0.8em">'+a.bssid+'</td><td>'+a.channel+'</td><td style="color:'+(a.rssi>-50?'var(--green)':a.rssi>-70?'var(--yellow)':'var(--red)')+'">'+a.rssi+'dBm</td><td><span class="badge">'+a.security+'</span></td></tr>'}).join('')}
-async function loadStations(){var d=await api('GET','/api/data/station');if(!d||!d.stations)return;document.querySelector('#staTable tbody').innerHTML=d.stations.map(function(s){return'<tr><td>'+s.index+'</td><td style="font-size:0.8em">'+s.mac+'</td><td>'+s.ap_index+'</td><td>'+s.packets+'</td></tr>'}).join('')}
-async function loadBLE(){var d=await api('GET','/api/data/ble');if(!d||!d.ble_devices)return;document.querySelector('#bleTable tbody').innerHTML=d.ble_devices.map(function(b){return'<tr><td>'+b.index+'</td><td>'+(b.name||'[?]')+'</td><td style="font-size:0.8em">'+(b.mac||'')+'</td><td>'+b.rssi+'dBm</td></tr>'}).join('')}
-async function loadRawStats(){var d=await api('GET','/api/data/rawstats');if(!d)return;document.getElementById('rawStats').innerHTML='<span>Beacon: <b>'+(d.beacon_frames||0)+'</b></span><span>Probe: <b>'+(d.req_frames||0)+'</b></span><span>Deauth: <b>'+(d.deauth_frames||0)+'</b></span><span>EAPOL: <b>'+(d.eapol_frames||0)+'</b></span><span>Mgmt: <b>'+(d.mgmt_frames||0)+'</b></span><span>Data: <b>'+(d.data_frames||0)+'</b></span><span>BT: <b>'+(d.bt_frames||0)+'</b></span><span>Flock: <b>'+(d.flock_devices||0)+'</b></span><span>RSSI: <b>'+(d.min_rssi||0)+'/'+(d.max_rssi||0)+'</b></span>'}
-async function loadGPS(){var d=await api('GET','/api/gps');if(!d)return;document.getElementById('gpsData').innerHTML=d.available!==false?'Fix: '+(d.fix?'YES':'NO')+' | Lat: '+(d.lat||'?')+' | Lon: '+(d.lon||'?')+' | Alt: '+(d.alt||'?')+'m | Sat: '+(d.satellites||0)+' | Acc: '+(d.accuracy||'?')+'m':'GPS not available'}
+async function loadAPs(){
+  var d=await api('GET','/api/data/ap');if(!d||!d.access_points)return;
+  document.getElementById('apBody').innerHTML=d.access_points.map(function(a,i){
+    return'<tr class="'+(a.selected?'sel':'')+'" onclick="toggleAP('+a.index+')"><td>'+a.index+'</td><td>'+(a.essid||'[hidden]')+'</td><td style="font-size:.75em">'+a.bssid+'</td><td>'+a.channel+'</td><td style="color:'+(a.rssi>-50?'var(--g)':a.rssi>-70?'var(--y)':'var(--r)')+'">'+a.rssi+'</td><td><span class="badge">'+a.security+'</span></td><td>'+(a.wps?'✓':'')+'</td><td>'+(a.selected?'●':'')+'</td></tr>'
+  }).join('')
+}
+async function loadStations(){
+  var d=await api('GET','/api/data/station');if(!d||!d.stations)return;
+  document.getElementById('staBody').innerHTML=d.stations.map(function(s){return'<tr><td>'+s.index+'</td><td style="font-size:.75em">'+s.mac+'</td><td>'+s.ap_index+'</td><td>'+s.packets+'</td><td>'+(s.selected?'●':'')+'</td></tr>'}).join('')
+}
+async function loadBLE(){
+  var d=await api('GET','/api/data/ble');if(!d||!d.ble_devices)return;
+  document.getElementById('bleBody').innerHTML=d.ble_devices.map(function(b){return'<tr><td>'+b.index+'</td><td>'+(b.name||'[?]')+'</td><td style="font-size:.75em">'+(b.mac||'')+'</td><td>'+b.rssi+'</td></tr>'}).join('')
+}
+async function loadRawStats(){
+  var d=await api('GET','/api/data/rawstats');if(!d)return;
+  document.getElementById('rawStats').innerHTML='<span>Beacon: <b style="color:var(--g)">'+(d.beacon_frames||0)+'</b></span><span>Req: <b>'+d.req_frames+'</b></span><span>Resp: <b>'+d.resp_frames+'</b></span><span>Deauth: <b style="color:var(--r)">'+(d.deauth_frames||0)+'</b></span><span>EAPOL: <b style="color:var(--y)">'+(d.eapol_frames||0)+'</b></span><span>Mgmt: <b>'+d.mgmt_frames+'</b></span><span>Data: <b>'+d.data_frames+'</b></span><span>BT: <b>'+d.bt_frames+'</b></span><span>Flock: <b>'+d.flock_devices+'</b></span><span>RSSI: <b>'+(d.min_rssi||0)+'/'+(d.max_rssi||0)+'</b></span><span>Ch: <b>'+d.channel+'</b></span>'
+}
+async function loadGPS(){
+  var d=await api('GET','/api/gps');if(!d||d.available===false){document.getElementById('gpsGrid').innerHTML='<div class="stat"><div class="v">GPS unavailable</div></div>';return}
+  var h='<div class="stat"><div class="l">Fix</div><div class="v '+(d.fix?'ok':'er')+'">'+(d.fix?'YES':'NO')+'</div></div>';
+  h+='<div class="stat"><div class="l">Lat</div><div class="v">'+(d.lat||'?')+'</div></div>';
+  h+='<div class="stat"><div class="l">Lon</div><div class="v">'+(d.lon||'?')+'</div></div>';
+  h+='<div class="stat"><div class="l">Alt</div><div class="v">'+(d.alt||'?')+'m</div></div>';
+  h+='<div class="stat"><div class="l">Sats</div><div class="v">'+(d.satellites||0)+'</div></div>';
+  h+='<div class="stat"><div class="l">Accuracy</div><div class="v">'+(d.accuracy||'?')+'m</div></div>';
+  h+='<div class="stat"><div class="l">UTC</div><div class="v">'+(d.datetime||'?')+'</div></div>';
+  document.getElementById('gpsGrid').innerHTML=h;
+  if(d.nmea)document.getElementById('nmeaOut').textContent=d.nmea
+}
 
-// --- Boot: register SW, check connection, start polling ---
+// --- Settings ---
+async function loadSettings(){
+  var d=await api('GET','/api/settings');if(!d)return;
+  var h='';if(d.keys)for(var k in d.keys)h+='<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--b);font-size:.7em"><span>'+k+'</span><span style="color:var(--a);cursor:pointer" onclick="api(\'POST\',\'/api/settings?key='+k+'&toggle=1\');toast(\'Toggled '+k+'\')">'+d.keys[k]+'</span></div>';
+  document.getElementById('settingsList').innerHTML=h||'<span style="color:var(--d)">No settings</span>'
+}
+
+// --- Evil Portal ---
+function epStart(){
+  var apn=document.getElementById('apName').value||'FreeWiFi';
+  var html=document.getElementById('htmlFile').value||'index.html';
+  api('POST','/api/evilportal?action=start&apname='+encodeURIComponent(apn)+'&html='+encodeURIComponent(html))
+}
+async function loadEPStatus(){var d=await api('POST','/api/evilportal?action=status');if(d)document.getElementById('epStatus').innerHTML='Running: '+(d.running?'<span style="color:var(--g)">YES</span>':'NO')+' | AP: '+(d.ap_name||'?')+' | Victims: '+(d.victim_count||0)}
+
+// --- File browser ---
+async function loadFiles(){
+  var d=await api('GET','/api/files');if(!d||!d.files){document.getElementById('fileList').innerHTML='<span style="color:var(--d)">No SD or files</span>';return}
+  document.getElementById('fileList').innerHTML=d.files.map(function(f){return'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--b);font-size:.7em"><span>'+f+'</span><button class="btn xs dg" onclick="if(confirm(\'Delete '+f+'?\'))api(\'POST\',\'/api/files/delete?file='+encodeURIComponent(f)+'\');setTimeout(loadFiles,500)">Del</button></div>'}).join('')
+}
+function uploadFile(){
+  var inp=document.createElement('input');inp.type='file';inp.onchange=function(){
+    var f=inp.files[0];if(!f)return;
+    var fd=new FormData();fd.append('file',f);
+    fetch('/api/files/upload',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){toast(d.ok?'Uploaded':'Failed',d.ok?'':'er');setTimeout(loadFiles,500)})
+  };inp.click()
+}
+function selAllAPs(){api('POST','/api/ap/select?all=1')}
+function toggleAP(idx){api('POST','/api/ap/select?index='+idx+'&toggle=1')}
+function joinSelAP(){var pw=prompt('WiFi password (leave empty if open)')||'';api('POST','/api/join?pw='+encodeURIComponent(pw))}
+
+// --- Boot ---
 (async function boot(){
-  // Register Service Worker for offline caching
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('/sw.js').catch(function(){});
-  }
-
-  // Initial connection check
-  IS_ONLINE=await checkConnection();
-  if(IS_ONLINE){
-    loadStatus();loadAPs();loadStations();loadBLE();loadRawStats();loadGPS();
-  }else{fillOfflineStatus()}
-
-  // Status poll (critical: detects reconnect)
-  setInterval(async function(){
-    if(IS_ONLINE){loadStatus()}else{await checkConnection();if(IS_ONLINE){loadStatus();loadAPs();loadStations();loadBLE();loadRawStats();loadGPS()}}
-  },3000);
-
-  // Data poll (only when online)
-  setInterval(function(){if(IS_ONLINE){loadAPs();loadStations();loadBLE();loadRawStats();loadGPS()}},5000);
-
-  // PWA install prompt
-  var deferredPrompt;
-  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferredPrompt=e;document.getElementById('installBtn').classList.add('show')});
-  window.installPWA=function(){if(deferredPrompt){deferredPrompt.prompt();deferredPrompt.userChoice.then(function(r){document.getElementById('installBtn').classList.remove('show');deferredPrompt=null})}};
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
+  IS_ONLINE=await checkConn();
+  if(IS_ONLINE){loadStatus()}else{loadStatus()}
+  setInterval(async function(){if(IS_ONLINE){loadStatus()}else{await checkConn();if(IS_ONLINE)loadStatus()}},4000);
+  setInterval(function(){if(IS_ONLINE){if(currentPage==='wifi'){loadAPs();loadStations()}if(currentPage==='bt')loadBLE();if(currentPage==='attack')loadRawStats();if(currentPage==='gps')loadGPS()}},6000);
+  
+  var dp;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();dp=e});
+  window.installPWA=function(){if(dp){dp.prompt();dp.userChoice.then(function(){dp=null})}};
 })();
 </script>
 </body>

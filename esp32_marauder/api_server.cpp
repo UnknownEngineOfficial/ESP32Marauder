@@ -249,6 +249,7 @@ void ApiServer::handleStatus(AsyncWebServerRequest *request) {
   doc["board"] = board_target;
   doc["wifi_connected"] = _wifi_connected;
   doc["wifi_ap_mode"] = !_wifi_connected;
+  doc["debug"] = false;
   doc["scanning"] = wifi_scan_obj.scanning();
   doc["current_scan"] = wifi_scan_obj.currentScanMode;
   doc["channel"] = wifi_scan_obj.set_channel;
@@ -361,18 +362,24 @@ void ApiServer::handleScanStop(AsyncWebServerRequest *request) {
 }
 
 void ApiServer::handleChannel(AsyncWebServerRequest *request) {
-  int chan = getArgInt(request, "channel", -1);
+  int chan = getArgInt(request, "ch", -1);
+  if (chan < 1) chan = getArgInt(request, "channel", -1);
+  int hop = getArgInt(request, "hop", -1);
   DynamicJsonDocument doc(256);
-  if (chan >= 1 && chan <= 177) {
+  if (hop == 1) {
+    wifi_scan_obj.channel_hop = true;
+    doc["channel_hop"] = true;
+  } else if (hop == 0) {
+    wifi_scan_obj.channel_hop = false;
+    doc["channel_hop"] = false;
+  } else if (chan >= 1 && chan <= 177) {
     wifi_scan_obj.set_channel = chan;
     wifi_scan_obj.changeChannel(chan);
-    doc["ok"] = true;
     doc["channel"] = chan;
   } else {
-    // Return current channel
-    doc["ok"] = true;
     doc["channel"] = wifi_scan_obj.set_channel;
   }
+  doc["ok"] = true;
   sendJson(request, doc);
 }
 
@@ -625,7 +632,17 @@ void ApiServer::handleAPSelect(AsyncWebServerRequest *request) {
   String what = getArg(request, "what", "ap");
   String indices = getArg(request, "indices", "");
   String filter = getArg(request, "filter", "");
+  int idx = getArgInt(request, "index", -1);
+  bool toggle = getArg(request, "toggle", "false") == "1" || getArg(request, "toggle", "false") == "true";
+  bool all = getArg(request, "all", "false") == "1" || getArg(request, "all", "false") == "true";
+  bool clear = getArg(request, "clear", "false") == "1" || getArg(request, "clear", "false") == "true";
   DynamicJsonDocument doc(256);
+
+  if (clear && access_points) { for (int i=0;i<access_points->size();i++){AccessPoint ap=access_points->get(i);ap.selected=false;access_points->set(i,ap);} }
+  if (all && access_points) { for (int i=0;i<access_points->size();i++){AccessPoint ap=access_points->get(i);ap.selected=true;access_points->set(i,ap);} }
+  if (idx>=0 && access_points && idx<access_points->size() && toggle){AccessPoint ap=access_points->get(idx);ap.selected=!ap.selected;access_points->set(idx,ap);}
+  else if (idx>=0 && access_points && idx<access_points->size()){AccessPoint ap=access_points->get(idx);ap.selected=true;access_points->set(idx,ap);}
+  if (indices.length()==0&&!all&&!clear&&idx<0&&!toggle) return;;
   
   if (indices.length() > 0) {
     // Parse comma-separated indices
@@ -703,10 +720,12 @@ void ApiServer::handleSSIDCmd(AsyncWebServerRequest *request) {
 
 void ApiServer::handleSaveList(AsyncWebServerRequest *request) {
   String what = getArg(request, "what", "ap");
+  String list = getArg(request, "list", "");
+  if (list.length() > 0) what = list;
   DynamicJsonDocument doc(256);
-  if (what == "ap") wifi_scan_obj.RunSaveAPList(true);
-  else if (what == "ssid") wifi_scan_obj.RunSaveSSIDList(true);
-  else if (what == "station") wifi_scan_obj.RunSaveAPList(true);
+  if (what == "ap" || what == "aps") wifi_scan_obj.RunSaveAPList(true);
+  else if (what == "ssid" || what == "ssids") wifi_scan_obj.RunSaveSSIDList(true);
+  else if (what == "sta" || what == "station" || what == "stations") wifi_scan_obj.RunSaveAPList(true);
   doc["ok"] = true;
   doc["saved"] = what;
   sendJson(request, doc);
@@ -726,7 +745,8 @@ void ApiServer::handleLoadList(AsyncWebServerRequest *request) {
 
 void ApiServer::handleJoinWiFi(AsyncWebServerRequest *request) {
   String ssid = getArg(request, "ssid", "");
-  String password = getArg(request, "password", "");
+  String password = getArg(request, "pw", "");
+  if (password.length()==0) password = getArg(request, "password", "");
   int apIdx = getArgInt(request, "ap_index", -1);
   DynamicJsonDocument doc(256);
   
@@ -754,6 +774,8 @@ void ApiServer::handleJoinWiFi(AsyncWebServerRequest *request) {
 
 void ApiServer::handleMacSpoof(AsyncWebServerRequest *request) {
   String action = getArg(request, "action", "randap");
+  String type = getArg(request, "type", "");
+  if (type.length() > 0) action = type;
   DynamicJsonDocument doc(256);
   
   if (action == "randap") {
@@ -763,7 +785,7 @@ void ApiServer::handleMacSpoof(AsyncWebServerRequest *request) {
     wifi_scan_obj.RunGenerateRandomMac(false);
     doc["type"] = "random_station";
   } else if (action == "cloneap") {
-    int idx = getArgInt(request, "ap_index", -1);
+    int idx = getArgInt(request, "index", getArgInt(request, "ap_index", -1));
     if (idx >= 0 && access_points && idx < access_points->size()) {
       wifi_scan_obj.RunSetMac(access_points->get(idx).bssid, true);
       doc["type"] = "clone_ap";
