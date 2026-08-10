@@ -1,7 +1,6 @@
 #pragma once
-#include <pgmspace.h>
 
-// Auto-generated: web-interface/index.html (15512 bytes)
+#include <Arduino.h>
 
 const char WEB_INTERFACE_HTML[] PROGMEM = 
   "<!DOCTYPE html>\n"
@@ -85,7 +84,7 @@ const char WEB_INTERFACE_HTML[] PROGMEM =
   "</div>\n"
   "\n"
   "<div class=\"section\"><h2>📊 Stations</h2>\n"
-  "<div class=\"scroll-table\"><table id=\"staTable\"><thead><tr><th>#</th><th>MAC</th><th>AP</th><th>Ch</th><th>RSSI</th></tr></thead><tbody></tbody></table></div>\n"
+  "<div class=\"scroll-table\"><table id=\"staTable\"><thead><tr><th>#</th><th>MAC</th><th>AP</th><th>Pkts</th></tr></thead><tbody></tbody></table></div>\n"
   "</div>\n"
   "\n"
   "<div class=\"section\"><h2>🟦 BLE</h2>\n"
@@ -197,7 +196,7 @@ const char WEB_INTERFACE_HTML[] PROGMEM =
   "\n"
   "// --- Data loaders ---\n"
   "async function loadAPs(){var d=await api('GET','/api/data/ap');if(!d||!d.access_points)return;document.querySelector('#apTable tbody').innerHTML=d.access_points.map(function(a){return'<tr><td>'+a.index+'</td><td>'+(a.essid||'[hidden]')+'</td><td style=\"font-size:0.8em\">'+a.bssid+'</td><td>'+a.channel+'</td><td style=\"color:'+(a.rssi>-50?'var(--green)':a.rssi>-70?'var(--yellow)':'var(--red)')+'\">'+a.rssi+'dBm</td><td><span class=\"badge\">'+a.security+'</span></td></tr>'}).join('')}\n"
-  "async function loadStations(){var d=await api('GET','/api/data/station');if(!d||!d.stations)return;document.querySelector('#staTable tbody').innerHTML=d.stations.map(function(s){return'<tr><td>'+s.index+'</td><td style=\"font-size:0.8em\">'+s.mac+'</td><td>'+s.ap_index+'</td><td>'+s.channel+'</td><td>'+s.rssi+'dBm</td></tr>'}).join('')}\n"
+  "async function loadStations(){var d=await api('GET','/api/data/station');if(!d||!d.stations)return;document.querySelector('#staTable tbody').innerHTML=d.stations.map(function(s){return'<tr><td>'+s.index+'</td><td style=\"font-size:0.8em\">'+s.mac+'</td><td>'+s.ap_index+'</td><td>'+s.packets+'</td></tr>'}).join('')}\n"
   "async function loadBLE(){var d=await api('GET','/api/data/ble');if(!d||!d.ble_devices)return;document.querySelector('#bleTable tbody').innerHTML=d.ble_devices.map(function(b){return'<tr><td>'+b.index+'</td><td>'+(b.name||'[?]')+'</td><td style=\"font-size:0.8em\">'+(b.mac||'')+'</td><td>'+b.rssi+'dBm</td></tr>'}).join('')}\n"
   "async function loadRawStats(){var d=await api('GET','/api/data/rawstats');if(!d)return;document.getElementById('rawStats').innerHTML='<span>Beacon: <b>'+(d.beacon_frames||0)+'</b></span><span>Probe: <b>'+(d.req_frames||0)+'</b></span><span>Deauth: <b>'+(d.deauth_frames||0)+'</b></span><span>EAPOL: <b>'+(d.eapol_frames||0)+'</b></span><span>Mgmt: <b>'+(d.mgmt_frames||0)+'</b></span><span>Data: <b>'+(d.data_frames||0)+'</b></span><span>BT: <b>'+(d.bt_frames||0)+'</b></span><span>Flock: <b>'+(d.flock_devices||0)+'</b></span><span>RSSI: <b>'+(d.min_rssi||0)+'/'+(d.max_rssi||0)+'</b></span>'}\n"
   "async function loadGPS(){var d=await api('GET','/api/gps');if(!d)return;document.getElementById('gpsData').innerHTML=d.available!==false?'Fix: '+(d.fix?'YES':'NO')+' | Lat: '+(d.lat||'?')+' | Lon: '+(d.lon||'?')+' | Alt: '+(d.alt||'?')+'m | Sat: '+(d.satellites||0)+' | Acc: '+(d.accuracy||'?')+'m':'GPS not available'}\n"
@@ -231,4 +230,5 @@ const char WEB_INTERFACE_HTML[] PROGMEM =
   "</script>\n"
   "</body>\n"
   "</html>\n"
-  "";
+  "\n"
+;

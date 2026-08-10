@@ -247,7 +247,8 @@ void ApiServer::handleStatus(AsyncWebServerRequest *request) {
   doc["version"] = MARAUDER_VERSION;
   doc["hardware"] = HARDWARE_NAME;
   doc["board"] = board_target;
-  doc["wifi_connected"] = wifi_scan_obj.wifi_connected;
+  doc["wifi_connected"] = _wifi_connected;
+  doc["wifi_ap_mode"] = !_wifi_connected;
   doc["scanning"] = wifi_scan_obj.scanning();
   doc["current_scan"] = wifi_scan_obj.currentScanMode;
   doc["channel"] = wifi_scan_obj.set_channel;
