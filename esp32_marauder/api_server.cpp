@@ -9,7 +9,8 @@
 #include "web_interface_manifest.h"
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
-#include <errno.h>"
+#include <errno.h>
+#include <fcntl.h>"
 
 extern WiFiScan wifi_scan_obj;
 extern EvilPortal evil_portal_obj;
@@ -88,6 +89,7 @@ int ApiServer::getArgInt(AsyncWebServerRequest *request, const char* key, int de
 
 ApiServer::ApiServer() {
   server = new AsyncWebServer(API_PORT);
+  _last_recovery_reason = "none";
 }
 
 // ---------- WiFi Connect + mDNS ----------
@@ -293,6 +295,10 @@ void ApiServer::begin(const char* ssid, const char* password) {
   _bsdListenFd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
   Serial.printf("[DIAG] BSD socket() -> fd=%d errno=%d\n", _bsdListenFd, errno);
   if (_bsdListenFd >= 0) {
+    // Set O_NONBLOCK so accept() never blocks the Marauder loop()
+    int flags = fcntl(_bsdListenFd, F_GETFL, 0);
+    fcntl(_bsdListenFd, F_SETFL, flags | O_NONBLOCK);
+    Serial.printf("[DIAG] BSD socket set O_NONBLOCK (flags=0x%x)\n", flags);
     int one = 1;
     int sret = setsockopt(_bsdListenFd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
     Serial.printf("[DIAG] BSD setsockopt(REUSEADDR) -> %d errno=%d\n", sret, errno);
@@ -348,6 +354,8 @@ void ApiServer::handleStatus(AsyncWebServerRequest *request) {
   doc["hardware"] = HARDWARE_NAME;
   doc["board"] = board_target;
   doc["wifi_connected"] = _wifi_connected;
+  doc["recovery_count"] = _recovery_count;
+  doc["last_recovery_reason"] = _last_recovery_reason;
   doc["wifi_ap_mode"] = !_wifi_connected;
   doc["debug"] = false;
   doc["scanning"] = wifi_scan_obj.scanning();
@@ -1257,7 +1265,141 @@ void ApiServer::handleDataRawStats(AsyncWebServerRequest *request) {
 
 // ========== MAIN LOOP TICK ==========
 
+// ============ MANAGEMENT-PLANE HEALTH / RECOVERY ============
+
+void ApiServer::healthLog(const char* label, bool ok) {
+  Serial.printf("[HEALTH] %s=%s\n", label, ok ? "OK" : "FAIL");
+}
+
+bool ApiServer::restartMDNS() {
+  MDNS.end();
+  delay(50);
+  if (!MDNS.begin(API_MDNS_NAME)) {
+    healthLog("MDNS restart", false);
+    return false;
+  }
+  MDNS.addService("http", "tcp", API_PORT);
+  healthLog("MDNS restart", true);
+  return true;
+}
+
+bool ApiServer::restoreManagementWiFi() {
+  _last_recovery_reason = "restore_management_wifi";
+  _recovery_count++;
+  Serial.printf("[HEALTH] restoreManagementWiFi() attempt #%u\n", _recovery_count);
+
+  // 1. Ensure AP mode (AP or AP_STA) is set
+  wifi_mode_t cur = WIFI_MODE_NULL;
+  esp_wifi_get_mode(&cur);
+  if (!(cur == WIFI_MODE_AP || cur == WIFI_MODE_APSTA)) {
+    Serial.printf("[HEALTH] mode=%d -> re-setting WIFI_AP_STA\n", (int)cur);
+    WiFi.mode(WIFI_AP_STA);
+    delay(100);
+  }
+
+  // 2. (Re)start the management AP
+  bool apOk = WiFi.softAP("CHANGE_ME_MGMT_AP_SSID", "CHANGE_ME_HOTSPOT_PASSWORD");
+  Serial.printf("[HEALTH] softAP restart -> %s\n", apOk ? "OK" : "FAILED");
+  if (!apOk) return false;
+
+  // 3. Verify AP IP
+  IPAddress apip = WiFi.softAPIP();
+  if (apip.toString() != "192.168.4.1") {
+    Serial.printf("[HEALTH] AP IP mismatch: %s (wanted 192.168.4.1)\n", apip.toString().c_str());
+  }
+  _device_ip = apip.toString();
+
+  // 4. Ensure DHCP server started
+  esp_netif_t* ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+  if (ap_netif) {
+    esp_netif_dhcp_status_t dhcp = ESP_NETIF_DHCP_INIT;
+    esp_netif_dhcps_get_status(ap_netif, &dhcp);
+    if (dhcp != ESP_NETIF_DHCP_STARTED) {
+      esp_err_t e = esp_netif_dhcps_start(ap_netif);
+      Serial.printf("[HEALTH] dhcps_start -> 0x%x\n", (int)e);
+    }
+  }
+
+  // 5. Restart mDNS
+  restartMDNS();
+
+  // 6. Ensure HTTP server running
+  if (!_running) {
+    if (server) server->begin();
+    _running = true;
+    Serial.println("[HEALTH] HTTP server re-started");
+  }
+
+  healthLog("restoreManagementWiFi", true);
+  return true;
+}
+
+void ApiServer::runHealthCheck() {
+  bool ap_mode = false;
+  bool netif_present = false;
+  bool netif_up = false;
+  bool ap_ip_ok = false;
+  bool dhcp_started = false;
+  bool http_up = _running;
+  int clients = -1;
+
+  wifi_mode_t m = WIFI_MODE_NULL;
+  esp_wifi_get_mode(&m);
+  ap_mode = (m == WIFI_MODE_AP || m == WIFI_MODE_APSTA);
+
+  esp_netif_t* ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+  netif_present = (ap_netif != nullptr);
+  if (ap_netif) {
+    netif_up = esp_netif_is_netif_up(ap_netif);
+    esp_netif_ip_info_t ipi;
+    if (esp_netif_get_ip_info(ap_netif, &ipi) == ESP_OK) {
+      ap_ip_ok = ((uint8_t)(ipi.ip.addr & 0xFF) == 1 &&
+                  (uint8_t)((ipi.ip.addr >> 8) & 0xFF) == 4 &&
+                  (uint8_t)((ipi.ip.addr >> 16) & 0xFF) == 168 &&
+                  (uint8_t)((ipi.ip.addr >> 24) & 0xFF) == 192);
+    }
+    esp_netif_dhcp_status_t dhcp = ESP_NETIF_DHCP_INIT;
+    esp_netif_dhcps_get_status(ap_netif, &dhcp);
+    dhcp_started = (dhcp == ESP_NETIF_DHCP_STARTED);
+  }
+  clients = (int)WiFi.softAPgetStationNum();
+
+  healthLog("AP", ap_mode);
+  healthLog("NETIF", netif_present);
+  healthLog("NETIF_UP", netif_up);
+  healthLog("AP_IP", ap_ip_ok);
+  healthLog("DHCP", dhcp_started);
+  healthLog("HTTP", http_up);
+  healthLog("clients", clients > 0);
+
+  bool broken = !(ap_mode && netif_present && netif_up && ap_ip_ok && dhcp_started);
+  if (broken) {
+    _last_recovery_reason = "health_failed";
+    bool ok = restoreManagementWiFi();
+    if (!ok) {
+      _recovery_fails++;
+      Serial.printf("[HEALTH] recovery failed (%u consecutive)\n", _recovery_fails);
+      if (_recovery_fails >= 3) {
+        Serial.println("[HEALTH] 3 consecutive recovery failures -> ESP.restart()");
+        delay(100);
+        ESP.restart();
+      }
+    } else {
+      _recovery_fails = 0;
+    }
+  } else {
+    _recovery_fails = 0;
+  }
+}
+
 void ApiServer::handleClient() {
+  // Periodic management-plane health check (~every 5s)
+  unsigned long nowMs = millis();
+  if (nowMs - _lastHealthMs >= 5000) {
+    _lastHealthMs = nowMs;
+    runHealthCheck();
+  }
+
   // AsyncWebServer handles itself. Here we only poll the async STA state so
   // we don't block at boot: report connect/disconnect transitions once.
   static int lastStaStatus = -1;

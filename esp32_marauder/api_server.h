@@ -28,6 +28,16 @@ class ApiServer {
     bool _wifi_connected = false;
     String _device_ip;
 
+    // Health / recovery state
+    unsigned long _lastHealthMs = 0;
+    uint32_t _recovery_count = 0;
+    uint32_t _recovery_fails = 0;
+    String _last_recovery_reason;
+    void runHealthCheck();
+    bool restoreManagementWiFi();
+    bool restartMDNS();
+    void healthLog(const char* label, bool ok);
+
     // Helpers
     void sendJson(AsyncWebServerRequest *request, JsonDocument& doc, int code = 200);
     void sendError(AsyncWebServerRequest *request, const char* msg, int code = 400);
@@ -94,6 +104,8 @@ class ApiServer {
     bool isRunning() { return _running; }
     bool isWiFiConnected() { return _wifi_connected; }
     String getDeviceIP() { return _device_ip; }
+    uint32_t getRecoveryCount() { return _recovery_count; }
+    String getLastRecoveryReason() { return _last_recovery_reason; }
 };
 
 #endif

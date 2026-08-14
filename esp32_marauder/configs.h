@@ -428,8 +428,14 @@
     #define HAS_NIMBLE_2
     #define HAS_IDF_3
     //#define HAS_BUTTONS
-    #define HAS_BLACKHAT_LED
-    #define HAS_BLACKHAT_OLED
+    // NOTE: HAS_BLACKHAT_LED / HAS_BLACKHAT_OLED are external hardware
+    // (RGB LED + OLED display). Disabled in headless diagnostic builds via
+    // -DHEADLESS_DIAG to remove all I2C/GPIO side-effects from the
+    // management-plane debug path. ESP-internal logic (WiFi/Netif/DHCP) stays.
+    #ifndef HEADLESS_DIAG
+      #define HAS_BLACKHAT_LED
+      #define HAS_BLACKHAT_OLED
+    #endif
     //#define HAS_PWR_MGMT
     //#define HAS_SCREEN
     //#define HAS_SD
