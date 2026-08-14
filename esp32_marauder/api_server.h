@@ -22,6 +22,7 @@
 class ApiServer {
   private:
     AsyncWebServer* server;
+    WiFiServer* _diagServer = nullptr;   // raw synchronous server on port 8080 (diagnostic)
     bool _running = false;
     bool _wifi_connected = false;
     String _device_ip;

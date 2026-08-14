@@ -101,10 +101,42 @@ void ApiServer::begin(const char* ssid, const char* password) {
 
   WiFi.mode(WIFI_AP_STA);
 
+  // ---- WiFi event logging (diagnostic) ----
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
+    switch (event) {
+      case ARDUINO_EVENT_WIFI_AP_START:           Serial.println("[EV] AP_START"); break;
+      case ARDUINO_EVENT_WIFI_AP_STACONNECTED:    Serial.printf("[EV] AP_STACONNECTED (aid=%u)\n", info.wifi_ap_staconnected.aid); break;
+      case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED:   Serial.println("[EV] AP_STAIPASSIGNED"); break;
+      case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED: Serial.println("[EV] AP_STADISCONNECTED"); break;
+      case ARDUINO_EVENT_WIFI_STA_START:          Serial.println("[EV] STA_START"); break;
+      case ARDUINO_EVENT_WIFI_STA_CONNECTED:      Serial.println("[EV] STA_CONNECTED"); break;
+      case ARDUINO_EVENT_WIFI_STA_GOT_IP:         Serial.println("[EV] STA_GOT_IP"); break;
+      case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:   Serial.println("[EV] STA_DISCONNECTED"); break;
+      default: break;
+    }
+  });
+  Serial.println("[API] WiFi event handlers registered");
+
   bool apOk = WiFi.softAP(mgmtSSID, mgmtPW);
   String apIP = WiFi.softAPIP().toString();
   Serial.printf("[API] softAP(%s) -> %s · AP IP: %s\n",
                 mgmtSSID, apOk ? "OK" : "FAILED", apIP.c_str());
+
+  // ---- netif/stack diagnostic ----
+  {
+    wifi_mode_t m;
+    esp_wifi_get_mode(&m);
+    Serial.printf("[DIAG] WiFi.getMode()=%d · esp_wifi_get_mode()=%d · AP IP=%s · AP MAC=%s · stations=%d\n",
+                  (int)WiFi.getMode(), (int)m,
+                  WiFi.softAPIP().toString().c_str(),
+                  WiFi.softAPmacAddress().c_str(),
+                  (int)WiFi.softAPgetStationNum());
+    esp_netif_t* ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    esp_netif_t* sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    Serial.printf("[DIAG] netif AP=%s · netif STA=%s\n",
+                  ap_netif ? "PRESENT" : "MISSING",
+                  sta_netif ? "PRESENT" : "MISSING");
+  }
 
   _device_ip = apIP;  // management AP is the always-reachable address
 
@@ -215,6 +247,11 @@ void ApiServer::begin(const char* ssid, const char* password) {
   _running = true;
   Serial.println("[API] HTTP server started on 0.0.0.0:" + String(API_PORT));
   Serial.println("[API] Management URL: http://" + _device_ip + "/");
+
+  // ---- raw diagnostic WiFiServer on 8080 (bypasses AsyncWebServer) ----
+  _diagServer = new WiFiServer(8080);
+  _diagServer->begin();
+  Serial.println("[DIAG] raw WiFiServer listening on 8080");
 }
 
 void ApiServer::end() {
@@ -1180,6 +1217,29 @@ void ApiServer::handleClient() {
     } else if (s == WL_DISCONNECTED && _wifi_connected) {
       _wifi_connected = false;
       Serial.println("[API] STA disconnected — AP remains up");
+    }
+  }
+
+  // raw diagnostic server (port 8080) — accept + reply "pong\n"
+  if (_diagServer) {
+    WiFiClient cl = _diagServer->accept();
+    if (cl) {
+      Serial.println("[DIAG] raw client connected on 8080");
+      cl.setTimeout(1000);
+      while (cl.connected()) {
+        if (cl.available()) {
+          String ln = cl.readStringUntil('\n');
+          if (ln.length() <= 2) break;  // empty line -> end of headers
+        }
+      }
+      String body = "pong\n";
+      String resp = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
+                    String(body.length()) + "\r\nConnection: close\r\n\r\n" + body;
+      cl.print(resp);
+      cl.flush();
+      delay(10);
+      cl.stop();
+      Serial.println("[DIAG] raw 8080 replied 'pong'");
     }
   }
 }
