@@ -136,6 +136,18 @@ void ApiServer::begin(const char* ssid, const char* password) {
     Serial.printf("[DIAG] netif AP=%s · netif STA=%s\n",
                   ap_netif ? "PRESENT" : "MISSING",
                   sta_netif ? "PRESENT" : "MISSING");
+    if (ap_netif) {
+      esp_netif_dhcp_status_t dhcp = ESP_NETIF_DHCP_INIT;
+      esp_err_t derr = esp_netif_dhcps_get_status(ap_netif, &dhcp);
+      Serial.printf("[DIAG] AP DHCP server: err=%d status=%s\n",
+                    (int)derr,
+                    dhcp == ESP_NETIF_DHCP_STARTED ? "STARTED" :
+                    dhcp == ESP_NETIF_DHCP_STOPPED ? "STOPPED" :
+                    dhcp == ESP_NETIF_DHCP_INIT   ? "INIT" : "UNKNOWN");
+      // Also check netif flags
+      bool up = esp_netif_is_netif_up(ap_netif);
+      Serial.printf("[DIAG] AP netif up=%s\n", up ? "YES" : "NO");
+    }
   }
 
   _device_ip = apIP;  // management AP is the always-reachable address
@@ -143,9 +155,14 @@ void ApiServer::begin(const char* ssid, const char* password) {
   // Start STA join in the background — WiFi.begin() is asynchronous. We do NOT
   // block on it here (no 15s wait). The HTTP server starts immediately.
   _wifi_connected = false;
+#ifdef API_AP_ONLY_DIAG
+  Serial.println("[API] AP-ONLY DIAG BUILD — skipping STA begin (no WiFi.begin)");
+  Serial.printf("[API] mode=%d (AP only, STA untouched)\n", (int)WiFi.getMode());
+#else
   WiFi.begin(ssid, password);
   Serial.printf("[API] STA begin(%s) · mode=%d (async, non-blocking)\n",
                 ssid, (int)WiFi.getMode());
+#endif
 
   if (MDNS.begin(API_MDNS_NAME)) {
     Serial.println("[API] mDNS started: " + String(API_MDNS_NAME) + ".local");
