@@ -1335,6 +1335,8 @@ bool ApiServer::restoreManagementWiFi() {
 }
 
 void ApiServer::runHealthCheck() {
+  // READ-ONLY health observation. Recovery is DISABLED for the A/B baseline
+  // test: the checker only LOGS state and never mutates the WiFi/AP stack.
   bool ap_mode = false;
   bool netif_present = false;
   bool netif_up = false;
@@ -1364,32 +1366,17 @@ void ApiServer::runHealthCheck() {
   }
   clients = (int)WiFi.softAPgetStationNum();
 
-  healthLog("AP", ap_mode);
-  healthLog("NETIF", netif_present);
-  healthLog("NETIF_UP", netif_up);
-  healthLog("AP_IP", ap_ip_ok);
-  healthLog("DHCP", dhcp_started);
-  healthLog("HTTP", http_up);
-  healthLog("clients", clients > 0);
+  Serial.printf("[HEALTH] AP=%s NETIF=%s NETIF_UP=%s AP_IP=%s DHCP=%s HTTP=%s clients=%d\n",
+                ap_mode ? "OK" : "FAIL",
+                netif_present ? "OK" : "FAIL",
+                netif_up ? "OK" : "FAIL",
+                ap_ip_ok ? "OK" : "FAIL",
+                dhcp_started ? "OK" : "FAIL",
+                http_up ? "OK" : "FAIL",
+                clients);
 
-  bool broken = !(ap_mode && netif_present && netif_up && ap_ip_ok && dhcp_started);
-  if (broken) {
-    _last_recovery_reason = "health_failed";
-    bool ok = restoreManagementWiFi();
-    if (!ok) {
-      _recovery_fails++;
-      Serial.printf("[HEALTH] recovery failed (%u consecutive)\n", _recovery_fails);
-      if (_recovery_fails >= 3) {
-        Serial.println("[HEALTH] 3 consecutive recovery failures -> ESP.restart()");
-        delay(100);
-        ESP.restart();
-      }
-    } else {
-      _recovery_fails = 0;
-    }
-  } else {
-    _recovery_fails = 0;
-  }
+  bool infra_ok = (ap_mode && netif_present && netif_up && ap_ip_ok && dhcp_started);
+  Serial.printf("[HEALTH] state=%s recovery=DISABLED\n", infra_ok ? "HEALTHY" : "DEGRADED");
 }
 
 void ApiServer::handleClient() {
