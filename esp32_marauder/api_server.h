@@ -35,6 +35,7 @@ class ApiServer {
 
     // Web interface static files (from PROGMEM)
     void handleRoot(AsyncWebServerRequest *request);
+    void handlePing(AsyncWebServerRequest *request);
     void handleSW(AsyncWebServerRequest *request);
     void handleManifest(AsyncWebServerRequest *request);
 

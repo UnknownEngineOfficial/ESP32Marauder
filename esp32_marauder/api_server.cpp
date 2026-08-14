@@ -106,27 +106,14 @@ void ApiServer::begin(const char* ssid, const char* password) {
   Serial.printf("[API] softAP(%s) -> %s · AP IP: %s\n",
                 mgmtSSID, apOk ? "OK" : "FAILED", apIP.c_str());
 
-  WiFi.begin(ssid, password);
-  Serial.printf("[API] STA begin(%s) · mode=%d\n", ssid, (int)WiFi.getMode());
-
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    _wifi_connected = true;
-    Serial.printf("\n[API] STA connected! STA IP: %s · AP still at %s\n",
-                  WiFi.localIP().toString().c_str(), apIP.c_str());
-  } else {
-    _wifi_connected = false;
-    Serial.printf("\n[API] STA join failed (status=%d) — AP remains at %s\n",
-                  (int)WiFi.status(), apIP.c_str());
-  }
-
   _device_ip = apIP;  // management AP is the always-reachable address
+
+  // Start STA join in the background — WiFi.begin() is asynchronous. We do NOT
+  // block on it here (no 15s wait). The HTTP server starts immediately.
+  _wifi_connected = false;
+  WiFi.begin(ssid, password);
+  Serial.printf("[API] STA begin(%s) · mode=%d (async, non-blocking)\n",
+                ssid, (int)WiFi.getMode());
 
   if (MDNS.begin(API_MDNS_NAME)) {
     Serial.println("[API] mDNS started: " + String(API_MDNS_NAME) + ".local");
@@ -148,6 +135,7 @@ void ApiServer::begin(const char* ssid, const char* password) {
 
   // ========== ROOT (Web Interface) ==========
   server->on("/", HTTP_GET, [this](AsyncWebServerRequest *r){ handleRoot(r); });
+  server->on("/ping", HTTP_GET, [this](AsyncWebServerRequest *r){ handlePing(r); });
   server->on("/sw.js", HTTP_GET, [this](AsyncWebServerRequest *r){ handleSW(r); });
   server->on("/manifest.json", HTTP_GET, [this](AsyncWebServerRequest *r){ handleManifest(r); });
   
@@ -225,7 +213,8 @@ void ApiServer::begin(const char* ssid, const char* password) {
 
   server->begin();
   _running = true;
-  Serial.println("[API] Server started on port " + String(API_PORT));
+  Serial.println("[API] HTTP server started on 0.0.0.0:" + String(API_PORT));
+  Serial.println("[API] Management URL: http://" + _device_ip + "/");
 }
 
 void ApiServer::end() {
@@ -238,6 +227,12 @@ void ApiServer::end() {
 void ApiServer::handleRoot(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", WEB_INTERFACE_HTML);
   response->addHeader("Cache-Control", "no-cache");
+  request->send(response);
+}
+
+void ApiServer::handlePing(AsyncWebServerRequest *request) {
+  AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "pong");
+  addCorsHeaders(response);
   request->send(response);
 }
 
@@ -1172,7 +1167,19 @@ void ApiServer::handleDataRawStats(AsyncWebServerRequest *request) {
 // ========== MAIN LOOP TICK ==========
 
 void ApiServer::handleClient() {
-  // Nothing special needed — AsyncWebServer handles itself
-  // mDNS update
-  // MDNS.update(); -- handled by delay/lwip internally
+  // AsyncWebServer handles itself. Here we only poll the async STA state so
+  // we don't block at boot: report connect/disconnect transitions once.
+  static int lastStaStatus = -1;
+  int s = (int)WiFi.status();
+  if (s != lastStaStatus) {
+    lastStaStatus = s;
+    if (s == WL_CONNECTED) {
+      _wifi_connected = true;
+      Serial.printf("[API] STA connected! STA IP: %s · AP: %s\n",
+                    WiFi.localIP().toString().c_str(), _device_ip.c_str());
+    } else if (s == WL_DISCONNECTED && _wifi_connected) {
+      _wifi_connected = false;
+      Serial.println("[API] STA disconnected — AP remains up");
+    }
+  }
 }
