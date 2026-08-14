@@ -7,6 +7,9 @@
 #include "web_interface_html.h"
 #include "web_interface_sw.h"
 #include "web_interface_manifest.h"
+#include <lwip/sockets.h>
+#include <lwip/netdb.h>
+#include <errno.h>"
 
 extern WiFiScan wifi_scan_obj;
 extern EvilPortal evil_portal_obj;
@@ -106,7 +109,13 @@ void ApiServer::begin(const char* ssid, const char* password) {
     switch (event) {
       case ARDUINO_EVENT_WIFI_AP_START:           Serial.println("[EV] AP_START"); break;
       case ARDUINO_EVENT_WIFI_AP_STACONNECTED:    Serial.printf("[EV] AP_STACONNECTED (aid=%u)\n", info.wifi_ap_staconnected.aid); break;
-      case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED:   Serial.println("[EV] AP_STAIPASSIGNED"); break;
+      case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED: {
+        uint32_t ipval = info.wifi_ap_staipassigned.ip.addr;
+        uint8_t* ip = (uint8_t*)&ipval;
+        uint8_t* mac = info.wifi_ap_staipassigned.mac;
+        Serial.printf("[EV] AP_STAIPASSIGNED client IP=%u.%u.%u.%u MAC=%02X:%02X:%02X:%02X:%02X:%02X\n", ip[0], ip[1], ip[2], ip[3], mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        break;
+      }
       case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED: Serial.println("[EV] AP_STADISCONNECTED"); break;
       case ARDUINO_EVENT_WIFI_STA_START:          Serial.println("[EV] STA_START"); break;
       case ARDUINO_EVENT_WIFI_STA_CONNECTED:      Serial.println("[EV] STA_CONNECTED"); break;
@@ -147,6 +156,16 @@ void ApiServer::begin(const char* ssid, const char* password) {
       // Also check netif flags
       bool up = esp_netif_is_netif_up(ap_netif);
       Serial.printf("[DIAG] AP netif up=%s\n", up ? "YES" : "NO");
+      // IP configuration of the AP netif
+      esp_netif_ip_info_t ipi;
+      if (esp_netif_get_ip_info(ap_netif, &ipi) == ESP_OK) {
+        Serial.printf("[DIAG] AP IP cfg: IP=%u.%u.%u.%u GW=%u.%u.%u.%u MASK=%u.%u.%u.%u\n",
+          (uint8_t)(ipi.ip.addr & 0xFF), (uint8_t)((ipi.ip.addr >> 8) & 0xFF), (uint8_t)((ipi.ip.addr >> 16) & 0xFF), (uint8_t)((ipi.ip.addr >> 24) & 0xFF),
+          (uint8_t)(ipi.gw.addr & 0xFF), (uint8_t)((ipi.gw.addr >> 8) & 0xFF), (uint8_t)((ipi.gw.addr >> 16) & 0xFF), (uint8_t)((ipi.gw.addr >> 24) & 0xFF),
+          (uint8_t)(ipi.netmask.addr & 0xFF), (uint8_t)((ipi.netmask.addr >> 8) & 0xFF), (uint8_t)((ipi.netmask.addr >> 16) & 0xFF), (uint8_t)((ipi.netmask.addr >> 24) & 0xFF));
+      } else {
+        Serial.println("[DIAG] AP netif: esp_netif_get_ip_info FAILED");
+      }
     }
   }
 
@@ -269,6 +288,24 @@ void ApiServer::begin(const char* ssid, const char* password) {
   _diagServer = new WiFiServer(8080);
   _diagServer->begin();
   Serial.println("[DIAG] raw WiFiServer listening on 8080");
+
+  // ---- raw BSD/lwIP socket server on 8081 (bypasses ALL Arduino wrappers) ----
+  _bsdListenFd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+  Serial.printf("[DIAG] BSD socket() -> fd=%d errno=%d\n", _bsdListenFd, errno);
+  if (_bsdListenFd >= 0) {
+    int one = 1;
+    int sret = setsockopt(_bsdListenFd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+    Serial.printf("[DIAG] BSD setsockopt(REUSEADDR) -> %d errno=%d\n", sret, errno);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(8081);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    int bret = bind(_bsdListenFd, (struct sockaddr*)&addr, sizeof(addr));
+    Serial.printf("[DIAG] BSD bind(0.0.0.0:8081) -> %d errno=%d\n", bret, errno);
+    int lret = listen(_bsdListenFd, 4);
+    Serial.printf("[DIAG] BSD listen(8081) -> %d errno=%d\n", lret, errno);
+  }
 }
 
 void ApiServer::end() {
@@ -1234,6 +1271,33 @@ void ApiServer::handleClient() {
     } else if (s == WL_DISCONNECTED && _wifi_connected) {
       _wifi_connected = false;
       Serial.println("[API] STA disconnected — AP remains up");
+    }
+  }
+
+  // raw BSD/lwIP socket server (port 8081) — non-blocking accept poll + pong
+  if (_bsdListenFd >= 0) {
+    struct sockaddr_in cli;
+    socklen_t clilen = sizeof(cli);
+    int cfd = accept(_bsdListenFd, (struct sockaddr*)&cli, &clilen);
+    if (cfd >= 0) {
+      uint8_t* cip = (uint8_t*)&cli.sin_addr.s_addr;
+      Serial.printf("[DIAG] BSD 8081 client accepted from %u.%u.%u.%u fd=%d\n", cip[0], cip[1], cip[2], cip[3], cfd);
+      const char* body = "pong\n";
+      char resp[128];
+      int n = snprintf(resp, sizeof(resp),
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
+        (int)strlen(body), body);
+      int w = send(cfd, resp, n, 0);
+      Serial.printf("[DIAG] BSD 8081 sent %d bytes errno=%d\n", w, errno);
+      shutdown(cfd, 0);
+      close(cfd);
+    } else {
+      // EAGAIN/EWOULDBLOCK is normal (no client yet); log other errors once
+      static int bsd_errno_last = 0;
+      if (errno != bsd_errno_last && errno != EAGAIN && errno != EWOULDBLOCK) {
+        bsd_errno_last = errno;
+        Serial.printf("[DIAG] BSD accept() errno=%d (%s)\n", errno, strerror(errno));
+      }
     }
   }
 
