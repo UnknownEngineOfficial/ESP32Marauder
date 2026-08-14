@@ -90,9 +90,24 @@ ApiServer::ApiServer() {
 // ---------- WiFi Connect + mDNS ----------
 
 void ApiServer::begin(const char* ssid, const char* password) {
-  Serial.println("[API] Connecting to hotspot...");
-  WiFi.mode(WIFI_STA);
+  // Management network: WIFI_AP_STA — AP + STA run in parallel.
+  // The management AP "CHANGE_ME_MGMT_AP_SSID" is ALWAYS up (192.168.4.1),
+  // so the device stays reachable regardless of STA join success. The STA
+  // join to the external hotspot runs in parallel and never tears down the AP.
+  const char* mgmtSSID = "CHANGE_ME_MGMT_AP_SSID";
+  const char* mgmtPW   = "CHANGE_ME_HOTSPOT_PASSWORD";
+
+  Serial.println("[API] Bringing up management AP + STA (WIFI_AP_STA)...");
+
+  WiFi.mode(WIFI_AP_STA);
+
+  bool apOk = WiFi.softAP(mgmtSSID, mgmtPW);
+  String apIP = WiFi.softAPIP().toString();
+  Serial.printf("[API] softAP(%s) -> %s · AP IP: %s\n",
+                mgmtSSID, apOk ? "OK" : "FAILED", apIP.c_str());
+
   WiFi.begin(ssid, password);
+  Serial.printf("[API] STA begin(%s) · mode=%d\n", ssid, (int)WiFi.getMode());
 
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 30) {
@@ -103,20 +118,19 @@ void ApiServer::begin(const char* ssid, const char* password) {
 
   if (WiFi.status() == WL_CONNECTED) {
     _wifi_connected = true;
-    _device_ip = WiFi.localIP().toString();
-    Serial.println("\n[API] Connected! IP: " + _device_ip);
-
-    // mDNS
-    if (MDNS.begin(API_MDNS_NAME)) {
-      Serial.println("[API] mDNS started: " + String(API_MDNS_NAME) + ".local");
-      MDNS.addService("http", "tcp", API_PORT);
-    }
+    Serial.printf("\n[API] STA connected! STA IP: %s · AP still at %s\n",
+                  WiFi.localIP().toString().c_str(), apIP.c_str());
   } else {
-    Serial.println("\n[API] WiFi connect failed. Creating fallback AP...");
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP("CHANGE_ME_MGMT_AP_SSID", "CHANGE_ME_HOTSPOT_PASSWORD");
-    _device_ip = WiFi.softAPIP().toString();
     _wifi_connected = false;
+    Serial.printf("\n[API] STA join failed (status=%d) — AP remains at %s\n",
+                  (int)WiFi.status(), apIP.c_str());
+  }
+
+  _device_ip = apIP;  // management AP is the always-reachable address
+
+  if (MDNS.begin(API_MDNS_NAME)) {
+    Serial.println("[API] mDNS started: " + String(API_MDNS_NAME) + ".local");
+    MDNS.addService("http", "tcp", API_PORT);
   }
 
   // ---- CORS preflight ----

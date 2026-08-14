@@ -2586,8 +2586,13 @@ bool WiFiScan::shutdownWiFi() {
       esp_wifi_set_mode(WIFI_MODE_NULL);
       esp_wifi_stop();
       esp_wifi_restore();
-      esp_wifi_deinit();
-      esp_netif_deinit(); 
+      // When the API server owns the management WiFi, do NOT tear down the
+      // WiFi/netif stack (esp_wifi_deinit/esp_netif_deinit) — the management
+      // AP (WIFI_AP_STA) needs it to stay alive across scans.
+      #ifndef HAS_API_SERVER
+        esp_wifi_deinit();
+        esp_netif_deinit();
+      #endif 
     }
 
     this->setLEDMode(MODE_OFF);

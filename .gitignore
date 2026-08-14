@@ -32,3 +32,6 @@ build/
 __pycache__/
 .venv/
 venv/
+
+# Vendored libraries (own git repos)
+esp32_marauder/libraries/
