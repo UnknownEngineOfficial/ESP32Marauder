@@ -28,6 +28,13 @@ class ApiServer {
     bool _wifi_connected = false;
     String _device_ip;
 
+    // Observability counters (accept-hit instrumentation) — read-only diag,
+    // bumped on every accepted connection so we can see which listener
+    // actually receives traffic when the AP is "up but dead".
+    uint32_t _http_accepted = 0;     // AsyncWebServer :80 (via onRequest hook)
+    uint32_t _raw8080_accepted = 0;  // WiFiServer :8080
+    uint32_t _bsd8081_accepted = 0;  // raw lwIP/BSD :8081
+
     // Health / recovery state
     unsigned long _lastHealthMs = 0;
     uint32_t _recovery_count = 0;

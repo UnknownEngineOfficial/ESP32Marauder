@@ -9,8 +9,10 @@
 #include "web_interface_manifest.h"
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
+#include <lwip/priv/tcp_priv.h>
+#include <esp_wifi_ap_get_sta_list.h>
 #include <errno.h>
-#include <fcntl.h>"
+#include <fcntl.h>
 
 extern WiFiScan wifi_scan_obj;
 extern EvilPortal evil_portal_obj;
@@ -322,12 +324,14 @@ void ApiServer::end() {
 // ========== ROOT HANDLER (Web Interface) ==========
 
 void ApiServer::handleRoot(AsyncWebServerRequest *request) {
+  _http_accepted++;
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", WEB_INTERFACE_HTML);
   response->addHeader("Cache-Control", "no-cache");
   request->send(response);
 }
 
 void ApiServer::handlePing(AsyncWebServerRequest *request) {
+  _http_accepted++;
   AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "pong");
   addCorsHeaders(response);
   request->send(response);
@@ -1355,10 +1359,19 @@ void ApiServer::runHealthCheck() {
     netif_up = esp_netif_is_netif_up(ap_netif);
     esp_netif_ip_info_t ipi;
     if (esp_netif_get_ip_info(ap_netif, &ipi) == ESP_OK) {
-      ap_ip_ok = ((uint8_t)(ipi.ip.addr & 0xFF) == 1 &&
-                  (uint8_t)((ipi.ip.addr >> 8) & 0xFF) == 4 &&
-                  (uint8_t)((ipi.ip.addr >> 16) & 0xFF) == 168 &&
-                  (uint8_t)((ipi.ip.addr >> 24) & 0xFF) == 192);
+      // Use lwIP byte accessors (ip4_addr_get_byte reads in network order,
+      // i.e. most-significant octet first) so endianness is never manual.
+      ap_ip_ok = (ip4_addr_get_byte(&ipi.ip, 0) == 192 &&
+                  ip4_addr_get_byte(&ipi.ip, 1) == 168 &&
+                  ip4_addr_get_byte(&ipi.ip, 2) == 4 &&
+                  ip4_addr_get_byte(&ipi.ip, 3) == 1);
+      if (!ap_ip_ok) {
+        Serial.printf("[HEALTH] AP_IP mismatch: actual=%u.%u.%u.%u expected=192.168.4.1\n",
+                      ip4_addr_get_byte(&ipi.ip, 0),
+                      ip4_addr_get_byte(&ipi.ip, 1),
+                      ip4_addr_get_byte(&ipi.ip, 2),
+                      ip4_addr_get_byte(&ipi.ip, 3));
+      }
     }
     esp_netif_dhcp_status_t dhcp = ESP_NETIF_DHCP_INIT;
     esp_netif_dhcps_get_status(ap_netif, &dhcp);
@@ -1374,6 +1387,50 @@ void ApiServer::runHealthCheck() {
                 dhcp_started ? "OK" : "FAIL",
                 http_up ? "OK" : "FAIL",
                 clients);
+
+  // ---- TASK 3: ingress introspection (read-only) ----
+  // Throttle to every 3rd health tick (~15s) so the serial log stays readable.
+  static uint8_t ingress_tick = 0;
+  if ((++ingress_tick % 3) == 0) {
+    // (a) Station MAC + IP mapping via esp_wifi_ap_get_sta_list_with_ip
+    {
+      wifi_sta_list_t sta_list;
+      memset(&sta_list, 0, sizeof(sta_list));
+      esp_err_t e = esp_wifi_ap_get_sta_list(&sta_list);
+      if (e == ESP_OK && sta_list.num > 0) {
+        wifi_sta_mac_ip_list_t ip_list;
+        memset(&ip_list, 0, sizeof(ip_list));
+        esp_err_t e2 = esp_wifi_ap_get_sta_list_with_ip(&sta_list, &ip_list);
+        Serial.printf("[INGRESS] stations=%d (ip_lookup=0x%x)\n", sta_list.num, (int)e2);
+        for (int i = 0; i < ip_list.num; i++) {
+          esp_netif_pair_mac_ip_t &p = ip_list.sta[i];
+          Serial.printf("[INGRESS] sta[%d] mac=%02X:%02X:%02X:%02X:%02X:%02X ip=%u.%u.%u.%u\n",
+                        i,
+                        p.mac[0], p.mac[1], p.mac[2], p.mac[3], p.mac[4], p.mac[5],
+                        ip4_addr_get_byte(&p.ip, 0), ip4_addr_get_byte(&p.ip, 1),
+                        ip4_addr_get_byte(&p.ip, 2), ip4_addr_get_byte(&p.ip, 3));
+        }
+      } else {
+        Serial.printf("[INGRESS] stations=%d (get_sta_list=0x%x)\n", sta_list.num, (int)e);
+      }
+    }
+
+    // (b) TCP PCB lists: how many listeners / established / time-wait.
+    //     Read-only traversal of lwIP globals (tcp_priv.h).
+    {
+      int n_listen = 0, n_active = 0, n_tw = 0;
+      for (struct tcp_pcb_listen *l = tcp_listen_pcbs.listen_pcbs; l != NULL; l = l->next) {
+        n_listen++;
+        Serial.printf("[INGRESS] LISTEN pcb local_port=%u state=%d\n",
+                      (unsigned)l->local_port, (int)l->state);
+      }
+      for (struct tcp_pcb *a = tcp_active_pcbs; a != NULL; a = a->next) { n_active++; }
+      for (struct tcp_pcb *t = tcp_tw_pcbs; t != NULL; t = t->next) { n_tw++; }
+      Serial.printf("[INGRESS] tcp listen=%d active=%d timewait=%d · http_acc=%u raw8080=%u bsd8081=%u\n",
+                    n_listen, n_active, n_tw,
+                    _http_accepted, _raw8080_accepted, _bsd8081_accepted);
+    }
+  }
 
   bool infra_ok = (ap_mode && netif_present && netif_up && ap_ip_ok && dhcp_started);
   Serial.printf("[HEALTH] state=%s recovery=DISABLED\n", infra_ok ? "HEALTHY" : "DEGRADED");
@@ -1409,8 +1466,9 @@ void ApiServer::handleClient() {
     socklen_t clilen = sizeof(cli);
     int cfd = accept(_bsdListenFd, (struct sockaddr*)&cli, &clilen);
     if (cfd >= 0) {
+      _bsd8081_accepted++;
       uint8_t* cip = (uint8_t*)&cli.sin_addr.s_addr;
-      Serial.printf("[DIAG] BSD 8081 client accepted from %u.%u.%u.%u fd=%d\n", cip[0], cip[1], cip[2], cip[3], cfd);
+      Serial.printf("[DIAG] BSD 8081 accept#%u client %u.%u.%u.%u fd=%d\n", _bsd8081_accepted, cip[0], cip[1], cip[2], cip[3], cfd);
       const char* body = "pong\n";
       char resp[128];
       int n = snprintf(resp, sizeof(resp),
@@ -1434,7 +1492,8 @@ void ApiServer::handleClient() {
   if (_diagServer) {
     WiFiClient cl = _diagServer->accept();
     if (cl) {
-      Serial.println("[DIAG] raw client connected on 8080");
+      _raw8080_accepted++;
+      Serial.printf("[DIAG] raw 8080 accept#%u client connected\n", _raw8080_accepted);
       cl.setTimeout(1000);
       while (cl.connected()) {
         if (cl.available()) {
