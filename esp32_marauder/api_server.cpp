@@ -1424,25 +1424,15 @@ void ApiServer::runHealthCheck() {
       }
     }
 
-    // (b) TCP PCB lists: how many listeners / established / time-wait.
-    //     Read-only traversal of lwIP globals (tcp_priv.h).
-    {
-      int n_listen = 0, n_active = 0, n_tw = 0;
-      for (struct tcp_pcb_listen *l = tcp_listen_pcbs.listen_pcbs; l != NULL; l = l->next) {
-        n_listen++;
-        Serial.printf("[INGRESS] LISTEN pcb local_port=%u state=%d\n",
-                      (unsigned)l->local_port, (int)l->state);
-      }
-      for (struct tcp_pcb *a = tcp_active_pcbs; a != NULL; a = a->next) { n_active++; }
-      for (struct tcp_pcb *t = tcp_tw_pcbs; t != NULL; t = t->next) { n_tw++; }
-      Serial.printf("[INGRESS] tcp listen=%d active=%d timewait=%d · http_acc=%u raw8080=%u bsd8081=%u\n",
-                    n_listen, n_active, n_tw,
-                    _http_accepted, _raw8080_accepted, _bsd8081_accepted);
-    }
+    // (b) Accept-hit counters (unchanged) + full PCB dump with IP:port/state.
+    Serial.printf("[INGRESS] http_acc=%u raw8080=%u bsd8081=%u\n",
+                  _http_accepted, _raw8080_accepted, _bsd8081_accepted);
 
 #ifdef API_INGRESS_HOOK
-    // (c) Data-path counters below TCP (read-only): what reached lwIP.
+    // (c) Data-path counters + packet ring (read-only).
     apiIngressDump();
+    // (d) Full TCP PCB state: listeners / active / timewait.
+    apiIngressPcbDump();
 #endif
   }
 
