@@ -13,6 +13,9 @@
 #include <esp_wifi_ap_get_sta_list.h>
 #include <errno.h>
 #include <fcntl.h>
+#ifdef API_INGRESS_HOOK
+#include "ingress_hook.h"
+#endif
 
 extern WiFiScan wifi_scan_obj;
 extern EvilPortal evil_portal_obj;
@@ -286,6 +289,12 @@ void ApiServer::begin(const char* ssid, const char* password) {
   server->begin();
   _running = true;
   Serial.println("[API] HTTP server started on 0.0.0.0:" + String(API_PORT));
+
+#ifdef API_INGRESS_HOOK
+  // Wrap the AP netif->input AFTER softAP is fully up, so we observe the
+  // data path below TCP (ARP/IP/ICMP/TCP/UDP) read-only.
+  apiIngressInstall();
+#endif
   Serial.println("[API] Management URL: http://" + _device_ip + "/");
 
   // ---- raw diagnostic WiFiServer on 8080 (bypasses AsyncWebServer) ----
@@ -1430,6 +1439,11 @@ void ApiServer::runHealthCheck() {
                     n_listen, n_active, n_tw,
                     _http_accepted, _raw8080_accepted, _bsd8081_accepted);
     }
+
+#ifdef API_INGRESS_HOOK
+    // (c) Data-path counters below TCP (read-only): what reached lwIP.
+    apiIngressDump();
+#endif
   }
 
   bool infra_ok = (ap_mode && netif_present && netif_up && ap_ip_ok && dhcp_started);
