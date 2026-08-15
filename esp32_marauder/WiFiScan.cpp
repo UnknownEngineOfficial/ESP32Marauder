@@ -1932,6 +1932,13 @@ void WiFiScan::RunSetup() {
 
     //Serial.println("Initializing WiFi...");
 
+#ifdef API_WIFI_OWNER
+    // Single-owner diagnostic build: the API server is the SOLE WiFi owner.
+    // Do NOT init/start/spoof/shutdown the WiFi driver here — that double
+    // ownership (esp_wifi_init -> start -> stop -> restore, then the API
+    // server's own softAP) is the prime suspect for the dead data-path.
+    Serial.println("[WIFI-OWNER] RunSetup: skipping Marauder WiFi init (API server owns WiFi)");
+#else
     esp_wifi_init(&cfg);
     #ifdef HAS_IDF_3
       esp_wifi_set_country(&country);
@@ -1947,6 +1954,7 @@ void WiFiScan::RunSetup() {
     this->setMac();
     //Serial.println("Shutting down WiFi...");
     this->shutdownWiFi();
+#endif
   #endif
 
   this->initWiFi(1);
@@ -2265,6 +2273,14 @@ bool WiFiScan::scanning() {
 
 // Function to prepare to run a specific scan
 void WiFiScan::StartScan(uint8_t scan_mode, uint16_t color) {  
+#ifdef API_WIFI_OWNER
+  if (scan_mode != WIFI_SCAN_OFF) {
+    // Scan/attack functionality disabled in single-owner diagnostic build.
+    Serial.printf("[WIFI-OWNER] StartScan(%u) rejected — scan disabled\n", scan_mode);
+    this->currentScanMode = WIFI_SCAN_OFF;
+    return;
+  }
+#endif
   this->initWiFi(scan_mode);
   if (scan_mode == WIFI_SCAN_OFF) {
     #ifdef HAS_ACT_LED
@@ -2575,6 +2591,10 @@ void WiFiScan::startWiFiAttacks(uint8_t scan_mode, uint16_t color, const char* t
 }
 
 bool WiFiScan::shutdownWiFi() {
+#ifdef API_WIFI_OWNER
+  // Single-owner diagnostic: never tear down / stop / restore WiFi or netif.
+  return true;
+#endif
   if (this->wifi_initialized) {
     if (!this->wifi_connected) {
       esp_wifi_set_promiscuous(false);
@@ -3883,6 +3903,9 @@ void WiFiScan::RunClearSSIDs() {
 }
 
 void WiFiScan::setMac() {
+#ifdef API_WIFI_OWNER
+  return; // no MAC spoofing in single-owner diagnostic build
+#endif
   wifi_mode_t currentWiFiMode;
   esp_wifi_get_mode(&currentWiFiMode);
   esp_wifi_set_mac(WIFI_IF_AP, this->ap_mac);
@@ -9961,6 +9984,9 @@ bool WiFiScan::filterActive() {
 void WiFiScan::changeChannel(int chan) {
   if (chan != -1)
     this->set_channel = chan;
+#ifdef API_WIFI_OWNER
+  return; // no channel switching in single-owner diagnostic build
+#endif
   esp_wifi_set_channel(this->set_channel, WIFI_SECOND_CHAN_NONE);
   delay(1);
   #ifdef HAS_SCREEN
