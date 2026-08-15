@@ -101,11 +101,12 @@ ApiServer::ApiServer() {
 
 void ApiServer::begin(const char* ssid, const char* password) {
   // Management network: WIFI_AP_STA — AP + STA run in parallel.
-  // The management AP "CHANGE_ME_MGMT_AP_SSID" is ALWAYS up (192.168.4.1),
-  // so the device stays reachable regardless of STA join success. The STA
-  // join to the external hotspot runs in parallel and never tears down the AP.
-  const char* mgmtSSID = "CHANGE_ME_MGMT_AP_SSID";
-  const char* mgmtPW   = "CHANGE_ME_HOTSPOT_PASSWORD";
+  // The management AP is ALWAYS up (192.168.4.1), so the device stays
+  // reachable regardless of STA join success. The STA join to the external
+  // hotspot runs in parallel and never tears down the AP.
+  // Credentials come from build flags (secrets.env), never hardcoded here.
+  const char* mgmtSSID = API_MGMT_AP_SSID;
+  const char* mgmtPW   = API_MGMT_AP_PASSWORD;
 
   Serial.println("[API] Bringing up management AP + STA (WIFI_AP_STA)...");
 
@@ -1311,7 +1312,7 @@ bool ApiServer::restoreManagementWiFi() {
   }
 
   // 2. (Re)start the management AP
-  bool apOk = WiFi.softAP("CHANGE_ME_MGMT_AP_SSID", "CHANGE_ME_HOTSPOT_PASSWORD");
+  bool apOk = WiFi.softAP(API_MGMT_AP_SSID, API_MGMT_AP_PASSWORD);
   Serial.printf("[HEALTH] softAP restart -> %s\n", apOk ? "OK" : "FAILED");
   if (!apOk) return false;
 

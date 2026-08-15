@@ -35,3 +35,6 @@ venv/
 
 # Vendored libraries (own git repos)
 esp32_marauder/libraries/
+
+# Local credentials (real values injected at build time via -D flags)
+secrets.env

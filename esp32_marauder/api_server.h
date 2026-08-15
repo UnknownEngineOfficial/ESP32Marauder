@@ -8,12 +8,23 @@
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
 
-// Default hotspot credentials (user-configurable)
+// Hotspot (STA join) credentials — NO real defaults in source.
+// Real values are injected at build time via compiler flags (see secrets.env).
+// These placeholders are intentionally non-functional so a build without the
+// flags fails loudly instead of silently shipping real credentials.
 #ifndef API_HOTSPOT_SSID
   #define API_HOTSPOT_SSID "CHANGE_ME_HOTSPOT_SSID"
 #endif
 #ifndef API_HOTSPOT_PASSWORD
   #define API_HOTSPOT_PASSWORD "CHANGE_ME_HOTSPOT_PASSWORD"
+#endif
+
+// Management AP (the ESP's own AP) credentials — also flag-injected.
+#ifndef API_MGMT_AP_SSID
+  #define API_MGMT_AP_SSID "CHANGE_ME_MGMT_AP_SSID"
+#endif
+#ifndef API_MGMT_AP_PASSWORD
+  #define API_MGMT_AP_PASSWORD "CHANGE_ME_MGMT_AP_PASSWORD"
 #endif
 
 #define API_MDNS_NAME "marauder"
