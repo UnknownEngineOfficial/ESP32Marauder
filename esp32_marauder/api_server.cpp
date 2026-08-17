@@ -621,6 +621,21 @@ void ApiServer::handleOperationStart(AsyncWebServerRequest *request) {
     return;
   }
 
+  // Synchronous owner-guard: under API_WIFI_OWNER the WiFi stack is owned by
+  // the Management AP and any WiFi/attack operation is refused inline. This
+  // guarantees the reject response is delivered BEFORE any state changes, so
+  // the UI never shows a transient "RUNNING". BT ops (MGMT_SAFE) still pass.
+#ifdef API_WIFI_OWNER
+  if (m.impact == MGMT_DISCONNECT) {
+    doc["running"] = false;
+    doc["state"] = "rejected";
+    doc["reason"] = "wifi_owner_guard";
+    doc["name"] = m.name;
+    sendJson(request, doc);
+    return;
+  }
+#endif
+
   uint32_t duration = (uint32_t)getArgInt(request, "duration", 0);
 
   // Queue for deferred execution (after response flush).
