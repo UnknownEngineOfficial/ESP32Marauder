@@ -218,6 +218,11 @@ void ApiServer::begin(const char* ssid, const char* password) {
   // ========== CORE ==========
   server->on("/api/status", HTTP_GET, [this](AsyncWebServerRequest *r){ handleStatus(r); });
 
+  // ========== OPERATIONS ==========
+  server->on("/api/operation/start", HTTP_POST, [this](AsyncWebServerRequest *r){ handleOperationStart(r); });
+  server->on("/api/operation/stop", HTTP_POST, [this](AsyncWebServerRequest *r){ handleOperationStop(r); });
+  server->on("/api/operations", HTTP_GET, [this](AsyncWebServerRequest *r){ handleOperations(r); });
+
   // ========== SETTINGS ==========
   server->on("/api/settings", HTTP_GET, [this](AsyncWebServerRequest *r){ handleSettings(r); });
 
@@ -393,6 +398,257 @@ void ApiServer::handleStatus(AsyncWebServerRequest *request) {
     doc["battery_pct"] = battery_obj.getBattery();
   #endif
 
+  buildOperationJson(doc);
+
+  sendJson(request, doc);
+}
+
+// ========== OPERATIONS ==========
+
+// Map friendly type strings (used by the existing handlers / UI) to numeric
+// scan/attack modes. Returns WIFI_SCAN_OFF (0) when unknown.
+uint8_t ApiServer::modeFromType(const String& t) {
+  // Scans
+  if (t == "ap")        return WIFI_SCAN_AP;
+  if (t == "sta")       return WIFI_SCAN_STATION;
+  if (t == "all")       return WIFI_SCAN_ALL;
+  if (t == "probe")     return WIFI_SCAN_PROBE;
+  if (t == "pwn")       return WIFI_SCAN_PWN;
+  if (t == "deauth")    return WIFI_SCAN_DEAUTH;
+  if (t == "eapol")     return WIFI_SCAN_EAPOL;
+  if (t == "raw")       return WIFI_SCAN_RAW_CAPTURE;
+  if (t == "beacon")    return WIFI_SCAN_TARGET_AP;
+  if (t == "packet")    return WIFI_PACKET_MONITOR;
+  if (t == "sae")       return WIFI_SCAN_SAE;
+  if (t == "pinescan")  return WIFI_SCAN_PINESCAN;
+  if (t == "multissid") return WIFI_SCAN_MULTISSID;
+  // Attacks
+  if (t == "deauth_attack")       return WIFI_ATTACK_DEAUTH;
+  if (t == "deauth_targeted")     return WIFI_ATTACK_DEAUTH_TARGETED;
+  if (t == "beacon_spam")         return WIFI_ATTACK_BEACON_SPAM;
+  if (t == "beacon_list")         return WIFI_ATTACK_BEACON_LIST;
+  if (t == "rickroll")            return WIFI_ATTACK_RICK_ROLL;
+  if (t == "probe_spam")          return WIFI_ATTACK_AP_SPAM;
+  if (t == "badmsg")              return WIFI_ATTACK_BAD_MSG;
+  if (t == "sleep")               return WIFI_ATTACK_SLEEP;
+  if (t == "sae_attack")          return WIFI_ATTACK_SAE_COMMIT;
+  if (t == "mimic")               return WIFI_ATTACK_MIMIC;
+  if (t == "evilportal")          return WIFI_SCAN_EVIL_PORTAL;
+  if (t == "wardrive")            return WIFI_SCAN_WAR_DRIVE;
+  // BT (SAFE)
+  if (t == "sourapple")           return BT_ATTACK_SOUR_APPLE;
+  if (t == "applejuice")          return BT_ATTACK_APPLE_JUICE;
+  if (t == "swiftpair")           return BT_ATTACK_SWIFTPAIR_SPAM;
+  if (t == "bt_spam_all")         return BT_ATTACK_SPAM_ALL;
+  if (t == "samsung")             return BT_ATTACK_SAMSUNG_SPAM;
+  if (t == "google")              return BT_ATTACK_GOOGLE_SPAM;
+  if (t == "flipper_spam")        return BT_ATTACK_FLIPPER_SPAM;
+  if (t == "airtag_spoof")        return BT_SPOOF_AIRTAG;
+  if (t == "bt_scan")             return BT_SCAN_ALL;
+  if (t == "skimmer")             return BT_SCAN_SKIMMERS;
+  if (t == "findmy_live")         return BT_ATTACK_FINDMY_LIVE;
+  return WIFI_SCAN_OFF;
+}
+
+void ApiServer::buildOperationJson(JsonDocument& doc) {
+  JsonObject op = doc.createNestedObject("operation");
+  uint32_t now = millis();
+  const OperationManager::Meta& m = _op.meta();
+  op["running"] = _op.running;
+  op["name"] = m.name;
+  op["mode"] = _op.mode;
+  op["impact"] = impactToString(m.impact);
+  op["started_ms"] = _op.started_ms;
+  op["runtime_ms"] = _op.runtime_ms(now);
+  op["management_available"] = _op.management_available;
+  op["remote_stop"] = m.remote_stop;
+  op["stop_method"] = _op.stopMethod();
+  op["timeout_ms"] = _op.timeout_ms;
+  op["remaining_ms"] = _op.hasTimer() ? _op.remaining_ms(now) : 0;
+}
+
+// Actually dispatch a queued operation to the WiFiScan engine and record it.
+// Called from handleClient() only — never from inside the HTTP handler — so
+// that the acknowledgement response has already flushed before the radio is
+// reconfigured by a disruptive (WiFi) operation.
+void ApiServer::executeOperation(uint8_t mode) {
+  _op.start(mode, _op_pending_duration);
+  _op_pending_duration = 0;
+
+  // Dispatch via the existing engine. WiFi ops go through StartScan (which is
+  // still guarded by API_WIFI_OWNER and sets currentScanMode=OFF on reject);
+  // BT ops are MGMT_SAFE and dispatch directly. Matching the existing handlers
+  // keeps behaviour identical, minus the blocking HTTP-context execution.
+  const OperationManager::Meta& m = _op.meta();
+  if (m.impact == MGMT_DISCONNECT) {
+    wifi_scan_obj.StartScan(mode, TFT_WHITE);
+    // Reject detection: StartScan refused (or was told OFF) if it did not reach
+    // the requested mode. This mirrors the API_WIFI_OWNER guard.
+    if (wifi_scan_obj.currentScanMode != mode) {
+      _op.stop();
+      healthLog("operation rejected", false);
+      Serial.printf("[OP] executeOperation(%u) rejected/ignored (mode=%u)\n", mode, wifi_scan_obj.currentScanMode);
+      return;
+    }
+    Serial.printf("[OP] started WiFi op mode=%u (management unavailable)\n", mode);
+  } else {
+    // MGMT_SAFE — dispatch directly (mirrors handleBluetooth/handleFindMy).
+    switch (mode) {
+      case BT_ATTACK_SOUR_APPLE:
+      case BT_ATTACK_APPLE_JUICE:
+        wifi_scan_obj.RunSourApple(mode, TFT_WHITE);
+        break;
+      case BT_ATTACK_SWIFTPAIR_SPAM:
+      case BT_ATTACK_SPAM_ALL:
+      case BT_ATTACK_SAMSUNG_SPAM:
+      case BT_ATTACK_GOOGLE_SPAM:
+      case BT_ATTACK_FLIPPER_SPAM:
+      case BT_SPOOF_AIRTAG:
+        wifi_scan_obj.RunSwiftpairSpam(mode, TFT_WHITE);
+        break;
+      case BT_ATTACK_FINDMY_LIVE:
+        wifi_scan_obj.RunFindMyLive(mode, TFT_WHITE);
+        break;
+      case BT_SCAN_SKIMMERS:
+        wifi_scan_obj.RunBluetoothScan(mode, TFT_WHITE);
+        break;
+      default:
+        wifi_scan_obj.RunBluetoothScan(mode, TFT_WHITE);
+        break;
+    }
+    Serial.printf("[OP] started BT/SAFE op mode=%u (management available)\n", mode);
+  }
+}
+
+// Stop the current operation and (for WiFi ops) restore the management network.
+bool ApiServer::stopOperation() {
+  if (!_op.running) return true;
+  const OperationManager::Meta& m = _op.meta();
+  uint8_t mode = _op.mode;
+
+  if (m.impact == MGMT_DISCONNECT) {
+    wifi_scan_obj.StartScan(WIFI_SCAN_OFF);   // resets currentScanMode + tears down
+    bool restored = restoreManagementWiFi();
+    Serial.printf("[OP] stopOperation(%u) restore=%s\n", mode, restored ? "OK" : "FAIL");
+    if (!restored) return false;
+  } else {
+    // SAFE: just stop BLE and mark idle.
+    #ifdef HAS_BT
+      wifi_scan_obj.shutdownBLE();
+    #endif
+  }
+
+  _op.stop();
+  return true;
+}
+
+void ApiServer::applyPendingOperation() {
+  if (!_op_pending) return;
+  _op_pending = false;
+  uint8_t mode = _op_pending_mode;
+  _op_pending_mode = WIFI_SCAN_OFF;
+  executeOperation(mode);
+}
+
+// Failsafe tick: runs from handleClient() every loop. Enforces the ESP-side
+// auto-stop deadline and attempts management recovery if a disruptive op was
+// left running without a timer.
+void ApiServer::tickOperation(uint32_t now_ms) {
+  applyPendingOperation();
+
+  if (!_op.running) return;
+
+  // Timer expiry -> stop + restore.
+  if (_op.hasTimer() && _op.expired(now_ms)) {
+    Serial.printf("[OP] deadline reached (mode=%u) -> auto-stop\n", _op.mode);
+    stopOperation();
+    return;
+  }
+
+  // If a disruptive op somehow lost web control AND has no timer (or the UI is
+  // gone), and enough time has passed since the last failed recovery, try to
+  // bring the management AP back. Debounced to avoid hammering.
+  if (_op.meta().impact == MGMT_DISCONNECT && !_op.management_available) {
+    if (now_ms - _op_last_expired_ms > 10000) {
+      _op_last_expired_ms = now_ms;
+      // Only attempt when no timer: timed ops are handled above.
+      if (!_op.hasTimer()) {
+        Serial.printf("[OP] disruptive op without timer — attempting recovery\n");
+        if (restoreManagementWiFi()) {
+          _op.management_available = true;
+        }
+      }
+    }
+  }
+}
+
+void ApiServer::handleOperationStart(AsyncWebServerRequest *request) {
+  DynamicJsonDocument doc(384);
+
+  // Resolve the target operation from either numeric ?mode= or a friendly
+  // ?type= string (mirrors the string keywords used by the existing handlers).
+  uint8_t mode = WIFI_SCAN_OFF;
+  bool hasMode = false;
+  if (request->hasParam("mode")) {
+    mode = (uint8_t)getArgInt(request, "mode", (int)WIFI_SCAN_OFF);
+    hasMode = true;
+  } else {
+    String type = getArg(request, "type", "");
+    if (type.length() > 0) {
+      hasMode = true;
+      mode = modeFromType(type);
+    }
+  }
+
+  if (!hasMode) {
+    sendError(request, "missing mode or type", 400);
+    return;
+  }
+
+  if (mode == WIFI_SCAN_OFF) {
+    sendError(request, "invalid mode", 400);
+    return;
+  }
+
+  const OperationManager::Meta& m = OperationManager::classify(mode);
+
+  // Reject unknown/unsupported modes explicitly — never start silently.
+  if (strcmp(m.name, "Unknown") == 0) {
+    doc["running"] = false;
+    doc["state"] = "rejected";
+    doc["reason"] = "unknown_mode";
+    sendJson(request, doc);
+    return;
+  }
+
+  uint32_t duration = (uint32_t)getArgInt(request, "duration", 0);
+
+  // Queue for deferred execution (after response flush).
+  _op_pending = true;
+  _op_pending_mode = mode;
+  _op_pending_duration = duration;
+
+  doc["running"] = true;
+  doc["state"] = "queued";
+  doc["name"] = m.name;
+  doc["impact"] = impactToString(m.impact);
+  doc["management_available"] = (m.impact != MGMT_DISCONNECT);
+  doc["timeout_ms"] = duration;
+  sendJson(request, doc);
+}
+
+void ApiServer::handleOperationStop(AsyncWebServerRequest *request) {
+  DynamicJsonDocument doc(256);
+  bool ok = stopOperation();
+  doc["running"] = _op.running;
+  doc["ok"] = ok;
+  if (!ok) doc["error"] = "restore_failed";
+  sendJson(request, doc);
+}
+
+void ApiServer::handleOperations(AsyncWebServerRequest *request) {
+  DynamicJsonDocument doc(512);
+  buildOperationJson(doc);
   sendJson(request, doc);
 }
 
@@ -1448,6 +1704,9 @@ void ApiServer::handleClient() {
     _lastHealthMs = nowMs;
     runHealthCheck();
   }
+
+  // Operation failsafe: deferred-start flush + deadline enforcement.
+  tickOperation(nowMs);
 
   // AsyncWebServer handles itself. Here we only poll the async STA state so
   // we don't block at boot: report connect/disconnect transitions once.

@@ -7,6 +7,7 @@
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
+#include "operation_manager.h"
 
 // Hotspot (STA join) credentials — NO real defaults in source.
 // Real values are injected at build time via compiler flags (see secrets.env).
@@ -56,6 +57,21 @@ class ApiServer {
     bool restartMDNS();
     void healthLog(const char* label, bool ok);
 
+    // Operation manager + deferred-start queue (start AFTER the HTTP response
+    // has flushed, so the browser reliably receives the acknowledgement before
+    // a disruptive operation reconfigures the radio).
+    OperationManager _op;
+    bool _op_pending = false;
+    uint8_t _op_pending_mode = WIFI_SCAN_OFF;
+    uint32_t _op_pending_duration = 0;
+    uint32_t _op_last_expired_ms = 0;  // debounce for the timer/recovery path
+    void applyPendingOperation();
+    void executeOperation(uint8_t mode);
+    void tickOperation(uint32_t now_ms);
+    bool stopOperation();
+    void buildOperationJson(JsonDocument& doc);
+    static uint8_t modeFromType(const String& type);
+
     // Helpers
     void sendJson(AsyncWebServerRequest *request, JsonDocument& doc, int code = 200);
     void sendError(AsyncWebServerRequest *request, const char* msg, int code = 400);
@@ -71,6 +87,9 @@ class ApiServer {
 
     // API handlers
     void handleStatus(AsyncWebServerRequest *request);
+    void handleOperationStart(AsyncWebServerRequest *request);
+    void handleOperationStop(AsyncWebServerRequest *request);
+    void handleOperations(AsyncWebServerRequest *request);
     void handleSettings(AsyncWebServerRequest *request);
     void handleScanStart(AsyncWebServerRequest *request);
     void handleScanStop(AsyncWebServerRequest *request);
