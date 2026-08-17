@@ -301,6 +301,8 @@ void setup()
 
   Serial.println("ESP-IDF version is: " + String(esp_get_idf_version()));
 
+  Serial.printf("FW version: %s (build %s %s)\n", MARAUDER_VERSION, __DATE__, __TIME__);
+
   #ifdef HAS_PSRAM
     if (!psramInit()) {
       Serial.println(F("PSRAM not available"));
@@ -444,7 +446,7 @@ void setup()
   // Start API Server (Web Interface control)
   #ifdef HAS_API_SERVER
     api_server_obj.begin(API_HOTSPOT_SSID, API_HOTSPOT_PASSWORD);
-    Serial.println("[API] Ready at http://" + api_server_obj.getDeviceIP() + " or http://marauder.local");
+    Serial.println("[API] Ready at http://" + api_server_obj.getDeviceIP() + " or http://marauder.local  [FW " + version_number + "]");
   #endif
 }
 

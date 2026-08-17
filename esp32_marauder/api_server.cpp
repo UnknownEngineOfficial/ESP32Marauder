@@ -108,9 +108,13 @@ void ApiServer::begin(const char* ssid, const char* password) {
   const char* mgmtSSID = API_MGMT_AP_SSID;
   const char* mgmtPW   = API_MGMT_AP_PASSWORD;
 
-  Serial.println("[API] Bringing up management AP + STA (WIFI_AP_STA)...");
+  Serial.println("[API] Bringing up management AP...");
 
-  WiFi.mode(WIFI_AP_STA);
+#ifdef API_AP_ONLY_DIAG
+  WiFi.mode(WIFI_AP);  // AP-only: reiner AP-Modus, stabile Beacons (kein STA-Coexist)
+#else
+  WiFi.mode(WIFI_AP_STA);  // Standard: AP + STA parallel
+#endif
 
   // ---- WiFi event logging (diagnostic) ----
   WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
@@ -1672,11 +1676,19 @@ bool ApiServer::restoreManagementWiFi() {
   // 1. Ensure AP mode (AP or AP_STA) is set
   wifi_mode_t cur = WIFI_MODE_NULL;
   esp_wifi_get_mode(&cur);
+#ifdef API_AP_ONLY_DIAG
+  if (cur != WIFI_MODE_AP) {
+    Serial.printf("[HEALTH] mode=%d -> re-setting pure WIFI_AP\n", (int)cur);
+    WiFi.mode(WIFI_AP);
+    delay(100);
+  }
+#else
   if (!(cur == WIFI_MODE_AP || cur == WIFI_MODE_APSTA)) {
     Serial.printf("[HEALTH] mode=%d -> re-setting WIFI_AP_STA\n", (int)cur);
     WiFi.mode(WIFI_AP_STA);
     delay(100);
   }
+#endif
 
   // 2. (Re)start the management AP
   bool apOk = WiFi.softAP(API_MGMT_AP_SSID, API_MGMT_AP_PASSWORD);
@@ -1766,6 +1778,11 @@ void ApiServer::runHealthCheck() {
                 clients);
 
   // ---- TASK 3: ingress introspection (read-only) ----
+  // DISABLED beim Produktions-Build: esp_wifi_ap_get_sta_list_with_ip() auf dem
+  // 8KB-loop()-Stack verursachte LoadProhibited-Crash sobald ein Client verbindet.
+  // Reaktivierbar via -DAPI_INGRESS_HOOK (dann wird auch der Dump-Pfad kompiliert).
+#ifdef API_INGRESS_HOOK
+  // ---- TASK 3: ingress introspection (read-only) ----
   // Throttle to every 3rd health tick (~15s) so the serial log stays readable.
   static uint8_t ingress_tick = 0;
   if ((++ingress_tick % 3) == 0) {
@@ -1804,6 +1821,7 @@ void ApiServer::runHealthCheck() {
 #endif
   }
 
+#endif  // API_INGRESS_HOOK
   bool infra_ok = (ap_mode && netif_present && netif_up && ap_ip_ok && dhcp_started);
   Serial.printf("[HEALTH] state=%s recovery=DISABLED\n", infra_ok ? "HEALTHY" : "DEGRADED");
 }
