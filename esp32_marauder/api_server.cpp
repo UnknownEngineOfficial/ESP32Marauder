@@ -342,6 +342,7 @@ void ApiServer::handleRoot(AsyncWebServerRequest *request) {
   _http_accepted++;
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", WEB_INTERFACE_HTML);
   response->addHeader("Cache-Control", "no-cache");
+  addCorsHeaders(response);
   request->send(response);
 }
 
