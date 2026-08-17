@@ -128,7 +128,11 @@ void ApiServer::begin(const char* ssid, const char* password) {
         Serial.printf("[EV] AP_STAIPASSIGNED client IP=%u.%u.%u.%u MAC=%02X:%02X:%02X:%02X:%02X:%02X\n", ip[0], ip[1], ip[2], ip[3], mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         break;
       }
-      case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED: Serial.println("[EV] AP_STADISCONNECTED"); break;
+      case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED: {
+        uint8_t r = info.wifi_ap_stadisconnected.reason;
+        Serial.printf("[EV] AP_STADISCONNECTED reason=%u\n", r);
+        break;
+      }
       case ARDUINO_EVENT_WIFI_STA_START:          Serial.println("[EV] STA_START"); break;
       case ARDUINO_EVENT_WIFI_STA_CONNECTED:      Serial.println("[EV] STA_CONNECTED"); break;
       case ARDUINO_EVENT_WIFI_STA_GOT_IP:         Serial.println("[EV] STA_GOT_IP"); break;
@@ -139,6 +143,7 @@ void ApiServer::begin(const char* ssid, const char* password) {
   Serial.println("[API] WiFi event handlers registered");
 
   bool apOk = WiFi.softAP(mgmtSSID, mgmtPW);
+  WiFi.setSleep(false);  // disable WiFi modem sleep in AP mode (prevents beacon-loss client drops)
   String apIP = WiFi.softAPIP().toString();
   Serial.printf("[API] softAP(%s) -> %s · AP IP: %s\n",
                 mgmtSSID, apOk ? "OK" : "FAILED", apIP.c_str());
