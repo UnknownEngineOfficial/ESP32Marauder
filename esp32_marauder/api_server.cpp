@@ -1749,9 +1749,9 @@ void ApiServer::handleClient() {
       uint8_t* cip = (uint8_t*)&cli.sin_addr.s_addr;
       Serial.printf("[DIAG] BSD 8081 accept#%u client %u.%u.%u.%u fd=%d\n", _bsd8081_accepted, cip[0], cip[1], cip[2], cip[3], cfd);
       const char* body = "pong\n";
-      char resp[128];
+      char resp[256];
       int n = snprintf(resp, sizeof(resp),
-        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
         (int)strlen(body), body);
       int w = send(cfd, resp, n, 0);
       Serial.printf("[DIAG] BSD 8081 sent %d bytes errno=%d\n", w, errno);
@@ -1781,7 +1781,7 @@ void ApiServer::handleClient() {
         }
       }
       String body = "pong\n";
-      String resp = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
+      String resp = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: " +
                     String(body.length()) + "\r\nConnection: close\r\n\r\n" + body;
       cl.print(resp);
       cl.flush();
