@@ -49,6 +49,14 @@ input:focus,select:focus{outline:none;border-color:var(--a)}
 @keyframes fade{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 .offline{display:none;position:fixed;top:0;left:0;right:0;background:var(--r);color:#fff;text-align:center;padding:4px;font-size:.65em;font-weight:600;z-index:100}
 .offline.show{display:block}
+.opbar{position:fixed;top:26px;left:8px;right:8px;background:var(--s);border:1px solid var(--b);border-radius:var(--rd);padding:6px 10px;z-index:90;display:flex;align-items:center;gap:8px;font-size:.72em;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.opbar.hide{display:none}
+.opbar .op-name{font-weight:600;color:var(--t)}
+.opbar .op-impact{font-size:.6em;text-transform:uppercase;letter-spacing:.3px;padding:1px 6px;border-radius:3px}
+.opbar .op-impact.sa{background:rgba(0,204,102,.15);color:var(--g)}
+.opbar .op-impact.dc{background:rgba(255,68,68,.2);color:var(--r)}
+.opbar .op-count{margin-left:auto;color:var(--y);font-variant-numeric:tabular-nums}
+.opbar .op-stop{border-color:var(--r);color:var(--r)}
 .modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);z-index:60;padding:20px;overflow-y:auto}
 .modal.show{display:flex;align-items:flex-start;justify-content:center}
 .modal>div{background:var(--s);border:1px solid var(--b);border-radius:var(--rd);padding:14px;max-width:400px;width:100%;margin-top:40px}
@@ -60,6 +68,12 @@ input:focus,select:focus{outline:none;border-color:var(--a)}
 </head>
 <body>
 <div class="offline" id="offlineBar">OFFLINE — reconnecting…</div>
+<div class="opbar hide" id="opBar">
+  <span class="op-name" id="opName"></span>
+  <span class="op-impact sa" id="opImpact"></span>
+  <span class="op-count" id="opCount"></span>
+  <button class="btn xs op-stop" onclick="opStop()">Stop</button>
+</div>
 
 <!-- ====== PAGE: STATUS ====== -->
 <div class="page active" id="page-status">
@@ -131,14 +145,14 @@ input:focus,select:focus{outline:none;border-color:var(--a)}
 <div class="row" id="atkScan"></div></div>
 <div class="section"><h2>Wardrive & Foxhunt</h2>
 <div class="row">
-<button class="btn wn" onclick="api('POST','/api/wardrive?action=start')">Wardrive Start</button>
-<button class="btn wn" onclick="api('POST','/api/wardrive?action=stop')">Wardrive Stop</button>
-<button class="btn wn" onclick="api('POST','/api/upload?dest=wigle')">Upload Wigle</button>
-<button class="btn wn" onclick="api('POST','/api/upload?dest=wdg')">Upload WDG</button>
+<button class="btn wn" onclick="opStart('op_wardrive',30,'Wardrive')">Wardrive Start</button>
+<button class="btn wn" onclick="opStop()">Wardrive Stop</button>
+<button class="btn" onclick="api('POST','/api/upload?dest=wigle')">Upload Wigle</button>
+<button class="btn" onclick="api('POST','/api/upload?dest=wdg')">Upload WDG</button>
 </div>
 <div class="row" style="margin-top:4px">
-<button class="btn wn" onclick="api('POST','/api/foxhunt?band=wifi')">Foxhunt WiFi</button>
-<button class="btn wn" onclick="api('POST','/api/foxhunt?band=bt')">Foxhunt BT</button>
+<button class="btn wn" onclick="opStart('op_foxhunt',30,'Foxhunt')">Foxhunt WiFi</button>
+<button class="btn wn" onclick="opStart('op_foxhunt',30,'Foxhunt BT')">Foxhunt BT</button>
 </div></div>
 <div class="section"><h2>Packet Stats</h2>
 <div id="rawStats" style="font-size:.7em;display:flex;flex-wrap:wrap;gap:8px"></div></div>
@@ -149,25 +163,24 @@ input:focus,select:focus{outline:none;border-color:var(--a)}
 <div class="topbar"><h1>🔵 Bluetooth</h1></div>
 <div class="section"><h2>BLE Scan</h2>
 <div class="row">
-<button class="btn" onclick="api('POST','/api/bt/scan?type=airtag')">Airtag</button>
-<button class="btn" onclick="api('POST','/api/bt/scan?type=flipper')">Flipper</button>
-<button class="btn" onclick="api('POST','/api/bt/scan?type=flock')">Flock</button>
-<button class="btn" onclick="api('POST','/api/bt/scan?type=meta')">Meta</button>
-<button class="btn" onclick="api('POST','/api/bt/scan?type=skim')">Skimmer</button>
+<button class="btn" onclick="opStart('bt_scan_airtag',0,'Airtag Sniff')">Airtag</button>
+<button class="btn" onclick="opStart('bt_scan_flipper',0,'Flipper Sniff')">Flipper</button>
+<button class="btn" onclick="opStart('bt_scan_flock',0,'Flock Sniff')">Flock</button>
+<button class="btn" onclick="opStart('bt_scan_meta',0,'Meta Sniff')">Meta</button>
+<button class="btn" onclick="opStart('bt_scan_skimmers',0,'Skimmer Sniff')">Skimmer</button>
 </div></div>
 <div class="section"><h2>BLE Spam</h2>
 <div class="row">
-<button class="btn wn" onclick="api('POST','/api/bt/spam?type=sourapple')">SourApple</button>
-<button class="btn wn" onclick="api('POST','/api/bt/spam?type=applejuice')">AppleJuice</button>
-<button class="btn wn" onclick="api('POST','/api/bt/spam?type=swiftpair')">SwiftPair</button>
-<button class="btn wn" onclick="api('POST','/api/bt/spam?type=google')">Google</button>
-<button class="btn wn" onclick="api('POST','/api/bt/spam?type=samsung')">Samsung</button>
-<button class="btn wn" onclick="api('POST','/api/bt/spam?type=windows')">Windows</button>
-<button class="btn wn" onclick="api('POST','/api/bt/spam?type=all')">ALL</button>
+<button class="btn wn" onclick="opStart('bt_spam_sourapple',0,'SourApple')">SourApple</button>
+<button class="btn wn" onclick="opStart('bt_spam_applejuice',0,'AppleJuice')">AppleJuice</button>
+<button class="btn wn" onclick="opStart('bt_spam_swiftpair',0,'SwiftPair')">SwiftPair</button>
+<button class="btn wn" onclick="opStart('bt_spam_google',0,'Google')">Google</button>
+<button class="btn wn" onclick="opStart('bt_spam_samsung',0,'Samsung')">Samsung</button>
+<button class="btn wn" onclick="opStart('bt_spam_all',0,'Spam All')">ALL</button>
 </div></div>
 <div class="section"><h2>FindMy</h2>
 <div class="row">
-<button class="btn" onclick="api('POST','/api/bt/findmy?action=scan')">Scan</button>
+<button class="btn" onclick="opStart('bt_findmy_live',0,'FindMy')">Scan</button>
 <button class="btn" onclick="api('POST','/api/bt/findmy?action=sound&tag_index=0')">Sound #0</button>
 <button class="btn" onclick="api('POST','/api/bt/findmy?action=sound&tag_index=1')">Sound #1</button>
 <button class="btn" onclick="api('POST','/api/bt/findmy?action=sound&tag_index=2')">Sound #2</button>
@@ -301,6 +314,36 @@ async function api(method,path,body){
 function setOffline(){if(IS_ONLINE){IS_ONLINE=false;OFFLINE_SINCE=Date.now();document.getElementById('offlineBar').classList.add('show')}}
 function setOnline(){if(!IS_ONLINE){IS_ONLINE=true;document.getElementById('offlineBar').classList.remove('show');toast('Reconnected!')}}
 
+// --- Operation helpers (single entry point: /api/operation/start) ---
+// All actions route through the canonical dispatcher with namespaced types
+// (scan_*, attack_*, bt_scan_*, bt_spam_*). `duration` in seconds (0=until stop).
+var OP_TIMER=null,OP_DEADLINE=0;
+async function opStart(type,durationSec,label){
+  var q=durationSec?('/api/operation/start?type='+type+'&duration='+(durationSec*1000)):('/api/operation/start?type='+type);
+  var d=await api('POST',q);
+  if(d){toast((label||type)+' '+(d.state==='rejected'?'rejected':'started'));renderOpBar(d)}
+}
+async function opStop(){
+  var d=await api('POST','/api/operation/stop');
+  if(d){toast('Stopped');stopOpTimer();renderOpBar(d)}
+}
+function renderOpBar(d){
+  var el=document.getElementById('opBar');if(!el)return;
+  if(d&&d.running&&d.state!=='rejected'){
+    el.classList.remove('hide');
+    document.getElementById('opName').textContent=d.name||'Operation';
+    document.getElementById('opImpact').textContent=d.impact||'';
+    document.getElementById('opImpact').className='op-impact '+(d.management_available===false?'dc':'sa');
+    if(d.timeout_ms&&d.timeout_ms>0){OP_DEADLINE=Date.now()+d.timeout_ms;startOpTimer()}
+    else stopOpTimer();
+    document.getElementById('opCount').textContent='';
+  }else{
+    el.classList.add('hide');stopOpTimer();
+  }
+}
+function startOpTimer(){stopOpTimer();OP_TIMER=setInterval(function(){var r=OP_DEADLINE-Date.now();if(r<=0){document.getElementById('opCount').textContent='0s';stopOpTimer()}else{document.getElementById('opCount').textContent=Math.ceil(r/1000)+'s'}},500)}
+function stopOpTimer(){if(OP_TIMER){clearInterval(OP_TIMER);OP_TIMER=null}if(document.getElementById('opCount'))document.getElementById('opCount').textContent=''}
+
 // --- Connection check ---
 async function checkConn(){
   try{var r=await fetch('/api/status',{signal:AbortSignal.timeout(4000)});if(r.ok){setOnline();return true}}catch(e){}
@@ -328,21 +371,30 @@ async function loadStatus(){
   document.getElementById('statusGrid').innerHTML=h||'<span style="color:var(--r)">OFFLINE</span>';
   if(d.wifi_connected){document.getElementById('connDot').classList.add('ok');try{document.getElementById('wifiDot').classList.add('ok')}catch(e){}}
   else{document.getElementById('connDot').classList.remove('ok');try{document.getElementById('wifiDot').classList.remove('ok')}catch(e){}}
+  // Reflect running operation into the op bar (polled state is source of truth
+  // for auto-stop timers and ops started outside this UI).
+  if(d.operation){renderOpBar({
+    running:d.operation.running,
+    name:d.operation.name,
+    impact:d.operation.impact,
+    management_available:d.operation.management_available,
+    timeout_ms:d.operation.remaining_ms||0
+  })}
 }
 
 // --- WiFi page ---
 (function buildWifiPage(){
-  var scans=[['AP','ap'],['Station','sta'],['All','all'],['Probe','probe'],['PWN','pwn'],['DeauthSniff','deauth'],['EAPOL','eapol'],['Raw','raw'],['Beacon','beacon'],['Packet','packet'],['SAE','sae'],['PineScan','pinescan'],['MultiSSID','multissid']];
-  document.getElementById('scanBtns').innerHTML=scans.map(function(s){return'<button class="btn xs" onclick="api(\'POST\',\'/api/scan/start?type='+s[1]+'\');toast(\''+s[0]+' started\')">'+s[0]+'</button>'}).join('');
+  var scans=[['AP','scan_ap'],['Station','scan_sta'],['All','scan_all'],['Probe','scan_probe'],['PWN','scan_pwn'],['DeauthSniff','scan_deauth'],['EAPOL','scan_eapol'],['Raw','scan_raw'],['Beacon','scan_beacon'],['Packet','scan_packet'],['SAE','scan_sae'],['PineScan','scan_pinescan'],['MultiSSID','scan_multissid']];
+  document.getElementById('scanBtns').innerHTML=scans.map(function(s){return'<button class="btn xs" onclick="opStart(\''+s[1]+'\',0,\''+s[0]+'\')">'+s[0]+'</button>'}).join('');
   
   // Channel selector
   var ch='';for(var i=1;i<=14;i++)ch+='<option value="'+i+'">Ch '+i+'</option>';
   document.getElementById('chSelect').innerHTML=ch;
 
-  // Attack buttons  
-  document.getElementById('atkDeauth').innerHTML='<button class="btn dg" onclick="api(\'POST\',\'/api/attack/start?type=deauth\')">Deauth</button><button class="btn dg" onclick="api(\'POST\',\'/api/attack/start?type=deauth&mode=manual\')">Deauth Manual</button>';
-  document.getElementById('atkBeacon').innerHTML='<button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=beacon\')">Beacon Spam</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=beacon&mode=list\')">Beacon List</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=beacon&mode=rickroll\')">Rickroll</button>';
-  document.getElementById('atkOther').innerHTML='<button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=probe\')">Probe</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=badmsg\')">BadMSG</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=sae\')">SAE</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=csa\')">CSA</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=quiet\')">Quiet</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=apspam\')">AP Spam</button><button class="btn wn" onclick="api(\'POST\',\'/api/attack/start?type=mimic\')">Mimic</button>';
+  // Attack buttons (disruptive => 30s default auto-stop)
+  document.getElementById('atkDeauth').innerHTML='<button class="btn dg" onclick="opStart(\'attack_deauth\',30,\'Deauth\')">Deauth</button><button class="btn dg" onclick="opStart(\'attack_deauth_targeted\',30,\'Deauth Targeted\')">Deauth Manual</button>';
+  document.getElementById('atkBeacon').innerHTML='<button class="btn wn" onclick="opStart(\'attack_beacon\',30,\'Beacon Spam\')">Beacon Spam</button><button class="btn wn" onclick="opStart(\'attack_beacon_list\',30,\'Beacon List\')">Beacon List</button><button class="btn wn" onclick="opStart(\'attack_rickroll\',30,\'Rickroll\')">Rickroll</button>';
+  document.getElementById('atkOther').innerHTML='<button class="btn wn" onclick="opStart(\'attack_probe\',30,\'Probe\')">Probe</button><button class="btn wn" onclick="opStart(\'attack_badmsg\',30,\'BadMSG\')">BadMSG</button><button class="btn wn" onclick="opStart(\'attack_sae\',30,\'SAE\')">SAE</button><button class="btn wn" onclick="opStart(\'attack_csa\',30,\'CSA\')">CSA</button><button class="btn wn" onclick="opStart(\'attack_quiet\',30,\'Quiet\')">Quiet</button><button class="btn wn" onclick="opStart(\'attack_apspam\',30,\'AP Spam\')">AP Spam</button><button class="btn wn" onclick="opStart(\'attack_mimic\',30,\'Mimic\')">Mimic</button>';
   document.getElementById('atkScan').innerHTML='<button class="btn wn" onclick="api(\'POST\',\'/api/pingscan\')">Ping Scan</button><button class="btn wn" onclick="api(\'POST\',\'/api/portscan\')">Port Scan</button><button class="btn wn" onclick="api(\'POST\',\'/api/mactrack\')">MAC Track</button><button class="btn wn" onclick="api(\'POST\',\'/api/karma?action=start\')">Karma</button>';
 })();
 
@@ -389,7 +441,7 @@ async function loadSettings(){
 function epStart(){
   var apn=document.getElementById('apName').value||'FreeWiFi';
   var html=document.getElementById('htmlFile').value||'index.html';
-  api('POST','/api/evilportal?action=start&apname='+encodeURIComponent(apn)+'&html='+encodeURIComponent(html))
+  api('POST','/api/evilportal?action=start&apname='+encodeURIComponent(apn)+'&html='+encodeURIComponent(html)).then(function(d){if(d)renderOpBar({running:true,name:'Evil Portal',impact:'disconnect',management_available:false,timeout_ms:0})});
 }
 async function loadEPStatus(){var d=await api('POST','/api/evilportal?action=status');if(d)document.getElementById('epStatus').innerHTML='Running: '+(d.running?'<span style="color:var(--g)">YES</span>':'NO')+' | AP: '+(d.ap_name||'?')+' | Victims: '+(d.victim_count||0)}
 

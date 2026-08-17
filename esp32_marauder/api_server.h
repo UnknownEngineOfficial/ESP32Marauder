@@ -71,6 +71,10 @@ class ApiServer {
     bool stopOperation();
     void buildOperationJson(JsonDocument& doc);
     static uint8_t modeFromType(const String& type);
+    // Queue an operation via the deferred-start path (identical semantics to
+    // /api/operation/start?mode=X&duration=Y) but invoked in-process by the
+    // legacy handlers so they route through the SAME state machine.
+    void queueOperation(uint8_t mode, uint32_t duration_ms);
 
     // Helpers
     void sendJson(AsyncWebServerRequest *request, JsonDocument& doc, int code = 200);

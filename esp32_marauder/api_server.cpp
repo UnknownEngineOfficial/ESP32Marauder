@@ -408,8 +408,68 @@ void ApiServer::handleStatus(AsyncWebServerRequest *request) {
 
 // Map friendly type strings (used by the existing handlers / UI) to numeric
 // scan/attack modes. Returns WIFI_SCAN_OFF (0) when unknown.
+// Canonical type->mode map. Type strings are fully namespaced (scan_*,
+// attack_*, bt_scan_*, bt_spam_*) so a single `type` unambiguously resolves to
+// one operation — no scan/attack collisions. Legacy short strings are kept as
+// aliases so old handlers / bookmarks keep working; they map to the legacy
+// behaviour (collision-prone `deauth`/`beacon` resolve to the SCAN meaning,
+// matching handleScanStart, not handleAttack).
 uint8_t ApiServer::modeFromType(const String& t) {
-  // Scans
+  // --- Canonical scans ---
+  if (t == "scan_ap")        return WIFI_SCAN_AP;
+  if (t == "scan_sta")       return WIFI_SCAN_STATION;
+  if (t == "scan_all")       return WIFI_SCAN_ALL;
+  if (t == "scan_probe")     return WIFI_SCAN_PROBE;
+  if (t == "scan_pwn")       return WIFI_SCAN_PWN;
+  if (t == "scan_deauth")    return WIFI_SCAN_DEAUTH;
+  if (t == "scan_eapol")     return WIFI_SCAN_EAPOL;
+  if (t == "scan_raw")       return WIFI_SCAN_RAW_CAPTURE;
+  if (t == "scan_beacon")    return WIFI_SCAN_TARGET_AP;
+  if (t == "scan_packet")    return WIFI_PACKET_MONITOR;
+  if (t == "scan_sae")       return WIFI_SCAN_SAE;
+  if (t == "scan_pinescan")  return WIFI_SCAN_PINESCAN;
+  if (t == "scan_multissid") return WIFI_SCAN_MULTISSID;
+
+  // --- Canonical attacks ---
+  if (t == "attack_deauth")         return WIFI_ATTACK_DEAUTH;
+  if (t == "attack_deauth_targeted")return WIFI_ATTACK_DEAUTH_TARGETED;
+  if (t == "attack_beacon")         return WIFI_ATTACK_BEACON_SPAM;
+  if (t == "attack_beacon_list")    return WIFI_ATTACK_BEACON_LIST;
+  if (t == "attack_rickroll")       return WIFI_ATTACK_RICK_ROLL;
+  if (t == "attack_probe")          return WIFI_ATTACK_AP_SPAM;
+  if (t == "attack_badmsg")         return WIFI_ATTACK_BAD_MSG;
+  if (t == "attack_sae")            return WIFI_ATTACK_SAE_COMMIT;
+  if (t == "attack_csa")            return WIFI_ATTACK_CSA;
+  if (t == "attack_quiet")          return WIFI_ATTACK_QUIET;
+  if (t == "attack_apspam")         return WIFI_ATTACK_AP_SPAM;
+  if (t == "attack_mimic")          return WIFI_ATTACK_MIMIC;
+  if (t == "attack_funny_beacon")   return WIFI_ATTACK_FUNNY_BEACON;
+  if (t == "attack_sleep")          return WIFI_ATTACK_SLEEP;
+
+  // --- Canonical BT scans ---
+  if (t == "bt_scan_airtag")        return WIFI_SCAN_BLE;
+  if (t == "bt_scan_flipper")       return WIFI_SCAN_BLE;
+  if (t == "bt_scan_flock")         return WIFI_SCAN_BLE;
+  if (t == "bt_scan_meta")          return WIFI_SCAN_BLE;
+  if (t == "bt_scan_skimmers")      return BT_SCAN_SKIMMERS;
+
+  // --- Canonical BT spam ---
+  if (t == "bt_spam_sourapple")     return BT_ATTACK_SOUR_APPLE;
+  if (t == "bt_spam_applejuice")    return BT_ATTACK_APPLE_JUICE;
+  if (t == "bt_spam_swiftpair")     return BT_ATTACK_SWIFTPAIR_SPAM;
+  if (t == "bt_spam_google")        return BT_ATTACK_GOOGLE_SPAM;
+  if (t == "bt_spam_samsung")       return BT_ATTACK_SAMSUNG_SPAM;
+  if (t == "bt_spam_flipper")       return BT_ATTACK_FLIPPER_SPAM;
+  if (t == "bt_spam_all")           return BT_ATTACK_SPAM_ALL;
+  if (t == "bt_findmy_live")        return BT_ATTACK_FINDMY_LIVE;
+
+  // --- Other canonical operations ---
+  if (t == "op_evilportal")         return WIFI_SCAN_EVIL_PORTAL;
+  if (t == "op_wardrive")           return WIFI_SCAN_WAR_DRIVE;
+  if (t == "op_foxhunt")            return WIFI_SCAN_SIG_STREN;
+
+  // --- Legacy aliases (kept for backwards compatibility) ---
+  // Scans (unambiguous legacy scan types)
   if (t == "ap")        return WIFI_SCAN_AP;
   if (t == "sta")       return WIFI_SCAN_STATION;
   if (t == "all")       return WIFI_SCAN_ALL;
@@ -423,31 +483,35 @@ uint8_t ApiServer::modeFromType(const String& t) {
   if (t == "sae")       return WIFI_SCAN_SAE;
   if (t == "pinescan")  return WIFI_SCAN_PINESCAN;
   if (t == "multissid") return WIFI_SCAN_MULTISSID;
-  // Attacks
-  if (t == "deauth_attack")       return WIFI_ATTACK_DEAUTH;
-  if (t == "deauth_targeted")     return WIFI_ATTACK_DEAUTH_TARGETED;
-  if (t == "beacon_spam")         return WIFI_ATTACK_BEACON_SPAM;
-  if (t == "beacon_list")         return WIFI_ATTACK_BEACON_LIST;
-  if (t == "rickroll")            return WIFI_ATTACK_RICK_ROLL;
-  if (t == "probe_spam")          return WIFI_ATTACK_AP_SPAM;
-  if (t == "badmsg")              return WIFI_ATTACK_BAD_MSG;
-  if (t == "sleep")               return WIFI_ATTACK_SLEEP;
-  if (t == "sae_attack")          return WIFI_ATTACK_SAE_COMMIT;
-  if (t == "mimic")               return WIFI_ATTACK_MIMIC;
-  if (t == "evilportal")          return WIFI_SCAN_EVIL_PORTAL;
-  if (t == "wardrive")            return WIFI_SCAN_WAR_DRIVE;
-  // BT (SAFE)
-  if (t == "sourapple")           return BT_ATTACK_SOUR_APPLE;
-  if (t == "applejuice")          return BT_ATTACK_APPLE_JUICE;
-  if (t == "swiftpair")           return BT_ATTACK_SWIFTPAIR_SPAM;
-  if (t == "bt_spam_all")         return BT_ATTACK_SPAM_ALL;
-  if (t == "samsung")             return BT_ATTACK_SAMSUNG_SPAM;
-  if (t == "google")              return BT_ATTACK_GOOGLE_SPAM;
-  if (t == "flipper_spam")        return BT_ATTACK_FLIPPER_SPAM;
-  if (t == "airtag_spoof")        return BT_SPOOF_AIRTAG;
-  if (t == "bt_scan")             return BT_SCAN_ALL;
-  if (t == "skimmer")             return BT_SCAN_SKIMMERS;
-  if (t == "findmy_live")         return BT_ATTACK_FINDMY_LIVE;
+  // Attack legacy aliases (attack-only names that never collided)
+  if (t == "deauth_attack")   return WIFI_ATTACK_DEAUTH;
+  if (t == "deauth_targeted") return WIFI_ATTACK_DEAUTH_TARGETED;
+  if (t == "beacon_spam")     return WIFI_ATTACK_BEACON_SPAM;
+  if (t == "beacon_list")     return WIFI_ATTACK_BEACON_LIST;
+  if (t == "rickroll")        return WIFI_ATTACK_RICK_ROLL;
+  if (t == "probe_spam")      return WIFI_ATTACK_AP_SPAM;
+  if (t == "badmsg")          return WIFI_ATTACK_BAD_MSG;
+  if (t == "sleep")           return WIFI_ATTACK_SLEEP;
+  if (t == "sae_attack")      return WIFI_ATTACK_SAE_COMMIT;
+  if (t == "mimic")           return WIFI_ATTACK_MIMIC;
+  if (t == "apspam")          return WIFI_ATTACK_AP_SPAM;
+  if (t == "csa")             return WIFI_ATTACK_CSA;
+  if (t == "quiet")           return WIFI_ATTACK_QUIET;
+  if (t == "funny_beacon")    return WIFI_ATTACK_FUNNY_BEACON;
+  // BT legacy aliases
+  if (t == "sourapple")       return BT_ATTACK_SOUR_APPLE;
+  if (t == "applejuice")      return BT_ATTACK_APPLE_JUICE;
+  if (t == "swiftpair")       return BT_ATTACK_SWIFTPAIR_SPAM;
+  if (t == "samsung")         return BT_ATTACK_SAMSUNG_SPAM;
+  if (t == "google")          return BT_ATTACK_GOOGLE_SPAM;
+  if (t == "flipper_spam")    return BT_ATTACK_FLIPPER_SPAM;
+  if (t == "bt_spam_all")     return BT_ATTACK_SPAM_ALL;
+  if (t == "airtag_spoof")    return BT_SPOOF_AIRTAG;
+  if (t == "bt_scan")         return BT_SCAN_ALL;
+  if (t == "skimmer")         return BT_SCAN_SKIMMERS;
+  if (t == "findmy_live")     return BT_ATTACK_FINDMY_LIVE;
+  if (t == "evilportal")      return WIFI_SCAN_EVIL_PORTAL;
+  if (t == "wardrive")        return WIFI_SCAN_WAR_DRIVE;
   return WIFI_SCAN_OFF;
 }
 
@@ -504,6 +568,8 @@ void ApiServer::executeOperation(uint8_t mode) {
       case BT_ATTACK_SAMSUNG_SPAM:
       case BT_ATTACK_GOOGLE_SPAM:
       case BT_ATTACK_FLIPPER_SPAM:
+        wifi_scan_obj.RunSwiftpairSpam(mode, TFT_WHITE);
+        break;
       case BT_SPOOF_AIRTAG:
         wifi_scan_obj.RunSwiftpairSpam(mode, TFT_WHITE);
         break;
@@ -549,6 +615,14 @@ void ApiServer::applyPendingOperation() {
   uint8_t mode = _op_pending_mode;
   _op_pending_mode = WIFI_SCAN_OFF;
   executeOperation(mode);
+}
+
+// In-process queue entry used by the legacy handlers so they route through the
+// identical deferred-start state machine as /api/operation/start.
+void ApiServer::queueOperation(uint8_t mode, uint32_t duration_ms) {
+  _op_pending = true;
+  _op_pending_mode = mode;
+  _op_pending_duration = duration_ms;
 }
 
 // Failsafe tick: runs from handleClient() every loop. Enforces the ESP-side
@@ -639,6 +713,14 @@ void ApiServer::handleOperationStart(AsyncWebServerRequest *request) {
 
   uint32_t duration = (uint32_t)getArgInt(request, "duration", 0);
 
+  // Timer default: disruptive operations classified as timer-recommended get a
+  // 30s auto-stop unless the caller explicitly overrides `duration` (0 = none).
+  // A `duration=0` is a valid explicit "run until stopped" request, so we need
+  // to distinguish "not provided" from "explicitly 0".
+  if (!request->hasParam("duration") && m.timer_recommended) {
+    duration = 30000;
+  }
+
   // Queue for deferred execution (after response flush).
   _op_pending = true;
   _op_pending_mode = mode;
@@ -649,6 +731,8 @@ void ApiServer::handleOperationStart(AsyncWebServerRequest *request) {
   doc["name"] = m.name;
   doc["impact"] = impactToString(m.impact);
   doc["management_available"] = (m.impact != MGMT_DISCONNECT);
+  doc["timer_recommended"] = m.timer_recommended;
+  doc["remote_stop"] = m.remote_stop;
   doc["timeout_ms"] = duration;
   sendJson(request, doc);
 }
@@ -696,6 +780,9 @@ void ApiServer::handleSettings(AsyncWebServerRequest *request) {
 
 // ========== SCAN ==========
 
+// Legacy facade: routes through the shared deferred-start state machine so the
+// OperationManager remains the single source of truth. Behaviour is equivalent
+// to calling /api/operation/start?type=scan_<type>.
 void ApiServer::handleScanStart(AsyncWebServerRequest *request) {
   String type = getArg(request, "type", "ap");
   DynamicJsonDocument doc(256);
@@ -719,8 +806,9 @@ void ApiServer::handleScanStart(AsyncWebServerRequest *request) {
     return;
   }
 
-  wifi_scan_obj.StartScan(mode);
+  queueOperation(mode, 0);
   doc["ok"] = true;
+  doc["queued"] = true;
   doc["scan_type"] = type;
   doc["mode"] = mode;
   sendJson(request, doc);
@@ -792,16 +880,16 @@ void ApiServer::handleClearList(AsyncWebServerRequest *request) {
 }
 // ========== ATTACK ==========
 
+// Legacy facade: routes through the shared deferred-start state machine and
+// fixes the previously-wrong mappings (csa->WIFI_ATTACK_CSA, quiet->WIFI_ATTACK_QUIET).
+// Disruptive attacks get the 30s timer default via queueOperation.
 void ApiServer::handleAttack(AsyncWebServerRequest *request) {
   String type = getArg(request, "type", "deauth");
   DynamicJsonDocument doc(256);
 
-  // Stop current scans first
-  wifi_scan_obj.send_deauth = false;
-  
+  uint8_t mode = WIFI_SCAN_OFF;
   if (type == "deauth") {
-    wifi_scan_obj.StartScan(WIFI_ATTACK_DEAUTH);
-    wifi_scan_obj.send_deauth = true;
+    mode = WIFI_ATTACK_DEAUTH;
     doc["attack"] = "deauth";
   }
   else if (type == "deauth_targeted") {
@@ -809,41 +897,40 @@ void ApiServer::handleAttack(AsyncWebServerRequest *request) {
     if (target.length() > 0) {
       wifi_scan_obj.dst_mac = target;
     }
-    wifi_scan_obj.StartScan(WIFI_ATTACK_DEAUTH_TARGETED);
-    wifi_scan_obj.send_deauth = true;
+    mode = WIFI_ATTACK_DEAUTH_TARGETED;
     doc["attack"] = "deauth_targeted";
     doc["target"] = wifi_scan_obj.dst_mac;
   }
   else if (type == "beacon") {
-    String mode = getArg(request, "mode", "random");
-    if (mode == "list") wifi_scan_obj.StartScan(WIFI_ATTACK_BEACON_LIST);
-    else if (mode == "rickroll") wifi_scan_obj.StartScan(WIFI_ATTACK_RICK_ROLL);
-    else wifi_scan_obj.StartScan(WIFI_ATTACK_BEACON_SPAM);
+    String bmode = getArg(request, "mode", "random");
+    if (bmode == "list") mode = WIFI_ATTACK_BEACON_LIST;
+    else if (bmode == "rickroll") mode = WIFI_ATTACK_RICK_ROLL;
+    else mode = WIFI_ATTACK_BEACON_SPAM;
     doc["attack"] = "beacon";
-    doc["mode"] = mode;
+    doc["mode"] = bmode;
   }
   else if (type == "probe") {
-    wifi_scan_obj.StartScan(WIFI_ATTACK_AP_SPAM);
+    mode = WIFI_ATTACK_AP_SPAM;
     doc["attack"] = "probe";
   }
   else if (type == "badmsg") {
-    wifi_scan_obj.StartScan(WIFI_ATTACK_BAD_MSG);
+    mode = WIFI_ATTACK_BAD_MSG;
     doc["attack"] = "badmsg";
   }
   else if (type == "sleep") {
-    wifi_scan_obj.StartScan(WIFI_ATTACK_SLEEP);
+    mode = WIFI_ATTACK_SLEEP;
     doc["attack"] = "sleep";
   }
   else if (type == "sae") {
-    wifi_scan_obj.StartScan(WIFI_SCAN_SAE);
+    mode = WIFI_ATTACK_SAE_COMMIT;
     doc["attack"] = "sae";
   }
   else if (type == "csa") {
-    wifi_scan_obj.StartScan(WIFI_ATTACK_MIMIC);
+    mode = WIFI_ATTACK_CSA;
     doc["attack"] = "csa";
   }
   else if (type == "quiet") {
-    wifi_scan_obj.StartScan(WIFI_ATTACK_SLEEP);
+    mode = WIFI_ATTACK_QUIET;
     doc["attack"] = "quiet";
   }
   else {
@@ -851,24 +938,21 @@ void ApiServer::handleAttack(AsyncWebServerRequest *request) {
     return;
   }
 
+  // Disruptive WiFi attack => 30s default timer (queueOperation routes through _op).
+  queueOperation(mode, 30000);
   doc["ok"] = true;
+  doc["queued"] = true;
   sendJson(request, doc);
 }
 
 void ApiServer::handleAttackStop(AsyncWebServerRequest *request) {
   DynamicJsonDocument doc(256);
+  bool ok = stopOperation();
   wifi_scan_obj.send_deauth = false;
-  wifi_scan_obj.StopScan(WIFI_ATTACK_DEAUTH);
-  wifi_scan_obj.StopScan(WIFI_ATTACK_DEAUTH_TARGETED);
-  wifi_scan_obj.StopScan(WIFI_ATTACK_BEACON_SPAM);
-  wifi_scan_obj.StopScan(WIFI_ATTACK_BEACON_LIST);
-  wifi_scan_obj.StopScan(WIFI_ATTACK_RICK_ROLL);
-  wifi_scan_obj.StopScan(WIFI_ATTACK_AP_SPAM);
-  wifi_scan_obj.StopScan(WIFI_ATTACK_BAD_MSG);
-  wifi_scan_obj.StopScan(WIFI_ATTACK_SLEEP);
-  wifi_scan_obj.StopScan(WIFI_ATTACK_MIMIC);
-  doc["ok"] = true;
-  doc["message"] = "All attacks stopped";
+  doc["ok"] = ok;
+  doc["running"] = _op.running;
+  if (!ok) doc["error"] = "restore_failed";
+  doc["message"] = ok ? "All attacks stopped" : "stop/restore failed";
   sendJson(request, doc);
 }
 
@@ -876,9 +960,10 @@ void ApiServer::handleWardrive(AsyncWebServerRequest *request) {
   DynamicJsonDocument doc(256);
   String action = getArg(request, "action", "start");
   if (action == "start") {
-    wifi_scan_obj.StartScan(WIFI_SCAN_WAR_DRIVE);
+    queueOperation(WIFI_SCAN_WAR_DRIVE, 30000);
     doc["wardrive"] = "started";
   } else {
+    stopOperation();
     wifi_scan_obj.StopScan(WIFI_SCAN_WAR_DRIVE);
     doc["wardrive"] = "stopped";
   }
@@ -889,7 +974,7 @@ void ApiServer::handleWardrive(AsyncWebServerRequest *request) {
 void ApiServer::handleFoxhunt(AsyncWebServerRequest *request) {
   String band = getArg(request, "band", "wifi");
   DynamicJsonDocument doc(256);
-  wifi_scan_obj.StartScan(WIFI_SCAN_SIG_STREN);
+  queueOperation(WIFI_SCAN_SIG_STREN, 30000);
   doc["ok"] = true;
   doc["band"] = band;
   doc["foxhunt"] = "started";
@@ -905,15 +990,17 @@ void ApiServer::handleEvilPortal(AsyncWebServerRequest *request) {
     if (request->hasParam("apname")) {
       strncpy(apName, getArg(request, "apname").c_str(), MAX_AP_NAME_SIZE);
     }
-    wifi_scan_obj.StartScan(WIFI_SCAN_EVIL_PORTAL);
+    queueOperation(WIFI_SCAN_EVIL_PORTAL, 0);
     doc["evilportal"] = "started";
     doc["ap_name"] = apName;
   } else if (action == "stop") {
+    stopOperation();
     evil_portal_obj.cleanup();
     doc["evilportal"] = "stopped";
   } else if (action == "ack") {
     doc["evilportal"] = "ack_generated";
   } else if (action == "reset") {
+    stopOperation();
     evil_portal_obj.cleanup();
     doc["evilportal"] = "creds_reset";
   } else if (action == "sethtml") {
@@ -927,7 +1014,7 @@ void ApiServer::handleEvilPortal(AsyncWebServerRequest *request) {
     }
     doc["evilportal"] = "html_set";
   } else if (action == "status") {
-    doc["running"] = (wifi_scan_obj.currentScanMode == WIFI_SCAN_EVIL_PORTAL);
+    doc["running"] = (_op.running && _op.mode == WIFI_SCAN_EVIL_PORTAL);
     doc["ap_name"] = apName;
     doc["victim_count"] = (evil_portal_obj.get_user_name().length() > 0 ? 1 : 0);
   }
@@ -939,9 +1026,10 @@ void ApiServer::handleKarma(AsyncWebServerRequest *request) {
   DynamicJsonDocument doc(256);
   String action = getArg(request, "action", "start");
   if (action == "start") {
-    wifi_scan_obj.StartScan(WIFI_ATTACK_MIMIC); // closest proxy
+    queueOperation(WIFI_ATTACK_MIMIC, 30000); // closest proxy
     doc["karma"] = "started";
   } else {
+    stopOperation();
     wifi_scan_obj.StopScan(WIFI_ATTACK_MIMIC);
     doc["karma"] = "stopped";
   }
@@ -1214,30 +1302,37 @@ void ApiServer::handleBluetooth(AsyncWebServerRequest *request) {
     DynamicJsonDocument doc(256);
     
     if (path.indexOf("scan") > 0) {
-      // BT sniff
+      // BT sniff — all modes dispatch to the generic BLE scan (mirrors legacy).
       int mode = WIFI_SCAN_BLE;
       if (type == "airtag") mode = WIFI_SCAN_BLE;
       else if (type == "flipper") mode = WIFI_SCAN_BLE;
       else if (type == "flock") mode = WIFI_SCAN_BLE;
       else if (type == "meta") mode = WIFI_SCAN_BLE;
+      else if (type == "skimmers") mode = BT_SCAN_SKIMMERS;
       
-      wifi_scan_obj.RunBluetoothScan(mode, TFT_WHITE);
+      queueOperation(mode, 0);
       doc["bt_action"] = "scan";
       doc["type"] = type;
     } else if (path.indexOf("spam") > 0) {
-      // BT spam
+      // BT spam — fix the previously-broken mapping (swiftpair/google/samsung/…
+      // all collapsed to WIFI_SCAN_BLE) and route through _op.
       String spamType = getArg(request, "type", "sourapple");
-      int mode = WIFI_SCAN_BLE;
+      int mode = BT_ATTACK_SOUR_APPLE;
       if (spamType == "sourapple") mode = BT_ATTACK_SOUR_APPLE;
       else if (spamType == "applejuice") mode = BT_ATTACK_APPLE_JUICE;
-      else if (spamType == "swiftpair") mode = WIFI_SCAN_BLE;
+      else if (spamType == "swiftpair") mode = BT_ATTACK_SWIFTPAIR_SPAM;
+      else if (spamType == "google") mode = BT_ATTACK_GOOGLE_SPAM;
+      else if (spamType == "samsung") mode = BT_ATTACK_SAMSUNG_SPAM;
+      else if (spamType == "flipper") mode = BT_ATTACK_FLIPPER_SPAM;
+      else if (spamType == "all") mode = BT_ATTACK_SPAM_ALL;
       
-      wifi_scan_obj.RunSourApple(mode, TFT_WHITE);
+      queueOperation(mode, 0);
       doc["bt_action"] = "spam";
       doc["type"] = spamType;
     }
     
     doc["ok"] = true;
+    doc["queued"] = true;
     sendJson(request, doc);
   #else
     sendError(request, "Bluetooth not available on this hardware", 400);
@@ -1250,7 +1345,7 @@ void ApiServer::handleFindMy(AsyncWebServerRequest *request) {
     DynamicJsonDocument doc(256);
     
     if (action == "scan") {
-      wifi_scan_obj.RunFindMyLive(WIFI_SCAN_BLE, TFT_WHITE);
+      queueOperation(BT_ATTACK_FINDMY_LIVE, 0);
       doc["findmy"] = "scanning";
     } else if (action == "sound") {
       int tagIdx = getArgInt(request, "tag_index", 0);
@@ -1259,7 +1354,7 @@ void ApiServer::handleFindMy(AsyncWebServerRequest *request) {
       doc["sound_sent"] = soundResult;
       doc["tag_index"] = tagIdx;
     } else if (action == "stop") {
-      wifi_scan_obj.StopScan(WIFI_SCAN_BLE);
+      stopOperation();
       doc["findmy"] = "stopped";
     }
     
